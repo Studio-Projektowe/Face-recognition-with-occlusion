@@ -16,7 +16,7 @@ Preview the changes Terraform will make and then apply them. This will create th
 
 ```bash
 terraform plan
-terraform apply
+terraform apply -auto-approve
 ```
 
 # How to create environment in GCP?
@@ -105,7 +105,7 @@ resource "google_storage_bucket" "terraform_state_bucket" {
 }
 ```
 
-after that uncomment line with ``terrafrom { backend { "gcs" ...``` and run:
+after that uncomment line with `terrafrom { backend { "gcs" ...` and run:
 
 ```bash
 terraform init
@@ -123,7 +123,7 @@ Do you want to copy existing state to the new backend?
   backend? Enter "yes" to copy and "no" to start with an empty state.
 
   Enter a value: yes
-``
+```
 
 Now you are keeping terraform state remotely. To clear local env run:
 
