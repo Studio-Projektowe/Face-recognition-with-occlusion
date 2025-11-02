@@ -11,7 +11,7 @@ provider "google" {
 }
 
 resource "google_storage_bucket" "terraform_state_bucket" {
-  name                     = var.STATE_BUCKET
+  name                     = "terraform-remote-backend-17b99faefb6860c1"
   location                 = "US"
 
   force_destroy            = false

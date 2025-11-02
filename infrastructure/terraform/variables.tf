@@ -14,3 +14,8 @@ variable "REGION" {
   type        = string
   default     = "us-central1"
 }
+
+variable "LFITW_BUCKET_ORIGINAL" {
+  description = "The name of bucket containing 'Labeled Faces in the wild' original dataset"
+  type = string
+}
