@@ -52,6 +52,9 @@ PROJECT_ID   = "YOUR_GCP_PROJECT_ID"                             # Your actual G
 STATE_BUCKET = "your-new-bucket-name"                            # This MUST match the bucket name defined in config.tf
 REGION       = "us-central1"                                     # Desired GCP region, e.g., "europe-west1"
 ZONE         = "us-central1-a"                                   # Desired GCP zone, e.g., "europe-west1-b"
+NOTEBOOK_NAME = "vertex_ai"
+LFITW_BUCKET_ORIGINAL   = "lft_dataset"
+LFITW_WITH_OCCLUSION    = "lft_dataset_occluded"
 ```
 
 #### 5. Change backend name for your new unique bucket name
