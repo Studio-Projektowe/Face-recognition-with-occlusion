@@ -1,4 +1,4 @@
-# How to modify environment?
+# How to modify the environment?
 
 ## Initialize Terraform
 
@@ -19,7 +19,7 @@ terraform plan
 terraform apply (-auto-approve)
 ```
 
-# How to create environment in GCP?
+# How to create an environment in GCP?
 
 #### 1. Install `gcloud` with [tutorial](https://docs.cloud.google.com/sdk/docs/install)
 
