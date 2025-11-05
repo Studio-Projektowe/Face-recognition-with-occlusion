@@ -64,7 +64,7 @@ terraform {
 }
 ```
 
-#### 6. Create a storage bucket for keeping a terraform state remote
+#### 6. Create a storage bucket for keeping a terraform state remote (or look [link](https://docs.cloud.google.com/docs/terraform/resource-management/store-state))
 
 comment lines:
 
