@@ -16,7 +16,7 @@ Preview the changes Terraform will make and then apply them. This will create th
 
 ```bash
 terraform plan
-terraform apply -auto-approve
+terraform apply (-auto-approve)
 ```
 
 # How to create environment in GCP?
@@ -51,6 +51,7 @@ Use the following template for terraform.tfvars, replacing the placeholder value
 PROJECT_ID   = "YOUR_GCP_PROJECT_ID"                             # Your actual GCP Project ID
 STATE_BUCKET = "your-new-bucket-name"                            # This MUST match the bucket name defined in config.tf
 REGION       = "us-central1"                                     # Desired GCP region, e.g., "europe-west1"
+ZONE         = "us-central1-a"                                   # Desired GCP zone, e.g., "europe-west1-b"
 ```
 
 #### 5. Change backend name for your new unique bucket name
