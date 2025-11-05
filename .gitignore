@@ -6,3 +6,5 @@
 *.tfvars.json
 
 .env
+venv
+**/kaggle.json
