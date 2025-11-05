@@ -12,13 +12,13 @@ variable "STATE_BUCKET" {
 variable "REGION" {
   description = "The default region for GCP resources."
   type        = string
-  default     = "us-central1"
+  default     = "northamerica-northeast1"
 }
 
 variable "ZONE" {
   description = "The default zone for GCP resources."
   type        = string
-  default     = "us-central1-a"
+  default     = "northamerica-northeast1-b"
 }
 
 variable "LFITW_BUCKET_ORIGINAL" {
@@ -30,7 +30,7 @@ variable "LFITW_WITH_OCCLUSION" {
   description = "The name of bucket containing 'Labeled Faces in the wild' modified dataset with occlusion"
   type = string
 }
-  
+
 variable "NOTEBOOK_NAME" {
   description = "The name of workbench notebook"
   type = string

@@ -1,6 +1,6 @@
 resource "google_workbench_instance" "notebook_instance" {
   name     = "vgg-model-${random_id.suffix.hex}"
-  location = "northamerica-northeast1-b"
+  location = var.ZONE
   project  = var.PROJECT_ID
 
   gce_setup {
@@ -20,6 +20,7 @@ resource "google_workbench_instance" "notebook_instance" {
     }
   }
 
+  // optional:
   labels = {
     "project" = "face-recognition"
     "owner"   = "eliza_jakub"
