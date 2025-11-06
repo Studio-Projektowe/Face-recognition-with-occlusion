@@ -14,3 +14,15 @@ variable "ZONE" {
   type        = string
   default     = "northamerica-northeast1-b"
 }
+
+variable "KAGGLE_USERNAME" {
+  description = "Kaggle username"
+  type        = string
+  sensitive   = true
+}
+
+variable "KAGGLE_KEY" {
+  description = "Kaggle API key"
+  type        = string
+  sensitive   = true
+}
