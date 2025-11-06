@@ -33,6 +33,17 @@ resource "google_storage_bucket" "terraform_state_bucket" {
   }
 }
 
+resource "google_secret_manager_secret" "kaggle_secret" {
+  project   = var.PROJECT_ID
+  secret_id = "kaggle-api-key"
+  replication {
+    auto {}
+  }
+  depends_on = [google_project_service.apis]
+}
+
+# gcloud secrets versions add kaggle-api-key --data-file="kaggle.json"
+
 resource "google_project_service" "compute_api" {
   project                    = var.PROJECT_ID
   service                    = "compute.googleapis.com"
@@ -51,5 +62,18 @@ resource "google_project_service" "aiplatform_api" {
   project                    = var.PROJECT_ID
   service                    = "aiplatform.googleapis.com" # Vertex AI API
   disable_on_destroy         = false
+  disable_dependent_services = false
+}
+
+resource "google_project_service" "apis" {
+  for_each = toset([
+    "run.googleapis.com",
+    "artifactregistry.googleapis.com",
+    "secretmanager.googleapis.com",
+    "cloudbuild.googleapis.com"
+  ])
+  project            = var.PROJECT_ID
+  service            = each.key
+  disable_on_destroy = false
   disable_dependent_services = false
 }
