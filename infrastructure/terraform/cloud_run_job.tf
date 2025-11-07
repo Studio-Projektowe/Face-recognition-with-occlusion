@@ -19,7 +19,7 @@ resource "google_cloud_run_v2_job" "casia_download" {
 
   template {
     template {
-      timeout = "10800s"
+      timeout = "86400s"
       max_retries = 0
 
       service_account = data.google_compute_default_service_account.default.email
