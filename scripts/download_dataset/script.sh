@@ -3,9 +3,9 @@ set -e
 
 echo "--- Konfigurowanie Kaggle API ---"
 
-mkdir -p /app/.kaggle
-echo "${KAGGLE_JSON_CONTENT}" > /app/.kaggle/kaggle.json
-chmod 600 /app/.kaggle/kaggle.json
+mkdir -p ~/.kaggle
+echo "${KAGGLE_JSON_CONTENT}" > ~/.kaggle/kaggle.json
+chmod 600 ~/.kaggle/kaggle.json
 
 echo "Kaggle API skonfigurowane."
 
