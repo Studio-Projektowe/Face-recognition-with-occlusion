@@ -50,7 +50,7 @@ def download_and_upload_files(bucket_name, dataset_name):
         
         file_count = 0
         
-        for root, dirs, files in os.walk(downloaded_path):
+        for root, _, files in os.walk(downloaded_path):
             for filename in tqdm(files, desc="Przesyłanie plików", leave=False):
                     
                 local_path = os.path.join(root, filename)

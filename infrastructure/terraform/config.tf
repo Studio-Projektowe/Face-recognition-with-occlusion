@@ -44,6 +44,11 @@ resource "google_secret_manager_secret" "kaggle_secret" {
 
 # gcloud secrets versions add kaggle-api-key --data-file="kaggle.json"
 
+resource "google_secret_manager_secret_version" "kaggle_secret_version" {
+  secret = google_secret_manager_secret.kaggle_secret.name
+  secret_data = "secret-data"
+}
+
 resource "google_project_service" "compute_api" {
   project                    = var.PROJECT_ID
   service                    = "compute.googleapis.com"
