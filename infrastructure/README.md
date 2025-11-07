@@ -19,6 +19,8 @@ terraform plan
 terraform apply (-auto-approve)
 ```
 
+---
+
 # How to create an environment in GCP?
 
 #### 1. Install `gcloud` with [tutorial](https://docs.cloud.google.com/sdk/docs/install)
@@ -52,9 +54,6 @@ PROJECT_ID   = "YOUR_GCP_PROJECT_ID"                             # Your actual G
 STATE_BUCKET = "your-new-bucket-name"                            # This MUST match the bucket name defined in config.tf
 REGION       = "us-central1"                                     # Desired GCP region, e.g., "europe-west1"
 ZONE         = "us-central1-a"                                   # Desired GCP zone, e.g., "europe-west1-b"
-NOTEBOOK_NAME = "vertex_ai"
-LFITW_BUCKET_ORIGINAL   = "lft_dataset"
-LFITW_WITH_OCCLUSION    = "lft_dataset_occluded"
 ```
 
 #### 5. Change backend name for your new unique bucket name
@@ -158,3 +157,25 @@ terraform apply
 ```
 
 Note: The GCS bucket named your-new-bucket-name will be created (if it doesn't exist) and used to store Terraform's state file. This bucket's name is publicly visible in config.tf. Ensure its name is globally unique and do not store sensitive data directly in the bucket itself.
+
+
+#### 9. After Creating a Secret `"google_secret_manager_secret" "kaggle_secret"` make sure to load a file with your kaggle credentials into a secret. 
+
+```bash 
+gcloud secrets versions add kaggle-api-key --data-file="kaggle.json"
+```
+
+#### 10. During creating a `"google_cloud_run_v2_job" "casia_download"` an error can occure with bad url of docker image. 
+The reseason of this error is that we are creating a job run before creting an image in artifactory. You need to run `../../scripts/build_run/build-image.sh`
+script and propably again set an _image url_ atribute (refresh it i.e. in GCP UX or by terraform). Once you complete it you can run `../../scripts/build_run/job-run.sh` script that is running a job with builded image.
+
+> [!NOTE]
+> `gcloud build submit image_folder/ (...)`
+> ```
+> | image_folder
+> | - requirements.txt
+> | - Dockerfile
+> | - script.py
+> ```
+> ! Change name of _image_folder_ and env variables in `"google_cloud_run_v2_job" "casia_download"` and `build_run/` scripts.
+

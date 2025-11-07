@@ -10,6 +10,6 @@ export IMAGE_TAG="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_NA
 
 echo "Budowanie i wysyłanie obrazu: ${IMAGE_TAG}"
 
-gcloud builds submit . --tag=${IMAGE_TAG} --project=${PROJECT_ID}
+gcloud builds submit download_dataset/ --tag=${IMAGE_TAG} --project=${PROJECT_ID}
 
 echo "Obraz zbudowany. Utwórz zadanie a następnie uruchom job_run.sh"
