@@ -5,7 +5,7 @@ resource "random_id" "suffix" {
 
 # Labeled Faces in the Wild
 
-resource "google_storage_bucket" "labeled-faces-in-the-wild-original" {
+resource "google_storage_bucket" "labeled_faces_in_the_wild_original" {
   name                     = "kaggle-labeled-faces-in-the-wild-original-${random_id.suffix.hex}"
   location                 = "US"
 
@@ -23,7 +23,7 @@ resource "google_storage_bucket" "labeled-faces-in-the-wild-original" {
   }
 }
 
-resource "google_storage_bucket" "labeled-faces-in-the-wild-occlusion" {
+resource "google_storage_bucket" "labeled_faces_in_the_wild_occlusion" {
   name                     = "kaggle-labeled-faces-in-the-wild-occlusion-${random_id.suffix.hex}"
   location                 = "US"
 
@@ -43,7 +43,7 @@ resource "google_storage_bucket" "labeled-faces-in-the-wild-occlusion" {
 
 # CelebA - CelebFaces
 
-resource "google_storage_bucket" "celeb-faces-original" {
+resource "google_storage_bucket" "celeb_faces_original" {
   name                     = "kaggle-celeb-faces-original-${random_id.suffix.hex}"
   location                 = "US"
 
@@ -61,7 +61,7 @@ resource "google_storage_bucket" "celeb-faces-original" {
   }
 }
 
-resource "google_storage_bucket" "celeb-faces-occluded" {
+resource "google_storage_bucket" "celeb_faces_occluded" {
   name                     = "kaggle-celeb-faces-occluded-${random_id.suffix.hex}"
   location                 = "US"
 
@@ -81,9 +81,9 @@ resource "google_storage_bucket" "celeb-faces-occluded" {
 
 # CASIA-WebFace
 
-resource "google_storage_bucket" "casia-dataset-original-bucket" {
+resource "google_storage_bucket" "casia_dataset_original_bucket" {
   name     = "kaggle-casia-dataset-original-${random_id.suffix.hex}"
-  location = "US"
+  location = "northamerica-northeast1"
 
   force_destroy            = false
   public_access_prevention = "enforced"
