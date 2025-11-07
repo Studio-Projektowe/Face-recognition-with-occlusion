@@ -159,7 +159,7 @@ terraform apply
 Note: The GCS bucket named your-new-bucket-name will be created (if it doesn't exist) and used to store Terraform's state file. This bucket's name is publicly visible in config.tf. Ensure its name is globally unique and do not store sensitive data directly in the bucket itself.
 
 
-#### 9. After Creating a Secret `"google_secret_manager_secret" "kaggle_secret"` make sure to load a file with your kaggle credentials into a secret. 
+#### 9. After Creating a Secret `"google_secret_manager_secret" "kaggle_secret"` make sure to load a file with your kaggle credentials into a secret (you can use terraform `google_secret_manager_secret_version` resourse as well). 
 
 ```bash 
 gcloud secrets versions add kaggle-api-key --data-file="kaggle.json"
