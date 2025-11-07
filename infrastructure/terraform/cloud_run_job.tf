@@ -52,7 +52,7 @@ resource "google_cloud_run_v2_job" "casia_download" {
           value_source {
             secret_key_ref {
               secret  = google_secret_manager_secret.kaggle_secret.secret_id
-              version = google_secret_manager_secret_version.kaggle_secret_version.version
+              version = "latest"
             }
           }
         }
