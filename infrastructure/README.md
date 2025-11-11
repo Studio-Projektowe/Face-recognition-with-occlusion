@@ -178,4 +178,3 @@ script and propably again set an _image url_ atribute (refresh it i.e. in GCP UX
 > | - script.py
 > ```
 > ! Change name of _image_folder_ and env variables in `"google_cloud_run_v2_job" "casia_download"` and `build_run/` scripts.
-
