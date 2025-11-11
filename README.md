@@ -13,3 +13,16 @@ Below is a list of branch types and their purposes.
 |merge/	 | Used for combining several experimental or feature branches.	| merge/sprint3-merge-experiments |
 |release/ | Used for preparing the final version of a sprint before deployment. | release/sprint3 |
 |hotfix/  | Used for urgent fixes applied after a release. | hotfix/fix-typo-readme |
+
+project/
+│
+├── train_model.py
+├── evaluate_model.py   ← SKRYPT DO EWALUACJI
+├── models/
+│   └── face_model.pt
+├── data/
+│   ├── test_no_occlusion/
+│   └── test_occlusion/
+└── results/
+    ├── metrics.csv
+    └── tsne_plot.png
