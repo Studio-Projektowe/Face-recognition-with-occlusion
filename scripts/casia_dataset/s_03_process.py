@@ -4,54 +4,47 @@ import glob
 import json
 import cv2
 import logging
+import numpy as np  # Musimy to zaimportować
 from retinaface import RetinaFace
 from tqdm import tqdm
-from concurrent.futures import ProcessPoolExecutor, as_completed
+# Musi być THREAD (wątki), aby GPU działało
+from concurrent.futures import ThreadPoolExecutor, as_completed 
 from config import BASE_DATA_DIR, PROCESSING_ORDER, DEVICE, NUM_WORKERS, IMAGE_EXTENSIONS
 
-# Konfiguracja logowania, aby wyciszyć komunikaty z retinaface (opcjonalnie)
+# Konfiguracja logowania
 logging.basicConfig(level=logging.INFO)
 logging.getLogger('RetinaFace').setLevel(logging.WARNING)
 
 
-# Zmienna globalna dla modelu, aby zainicjować go raz na proces roboczy
-model = None
-
-def init_worker():
-    """Inicjalizuje model RetinaFace w każdym procesie roboczym."""
-    global model
-    try:
-        model = RetinaFace.build_model()
-        logging.info(f"Worker (PID: {os.getpid()}) loaded model on {DEVICE}.")
-    except Exception as e:
-        logging.error(f"Worker (PID: {os.getpid()}) failed to load model: {e}")
-        model = None # Upewnij się, że jest None, jeśli ładowanie się nie powiedzie
-
-def process_image(image_path):
-    """Przetwarza pojedynczy obraz: wykrywa twarz i zapisuje plik JSON."""
-    global model
-    
-    if model is None:
-        return image_path, "Model not loaded"
-
+def process_image(image_path, model):
+    """
+    Przetwarza pojedynczy obraz: wykrywa twarz i zapisuje plik JSON.
+    Model (funkcja) jest przekazywany jako argument.
+    """
     try:
         # 1. Obliczenie ścieżki wyjściowej JSON
         base_name = os.path.splitext(image_path)[0]
         json_path = base_name + ".json"
 
-        # Pomiń, jeśli plik JSON już istnieje
         if os.path.exists(json_path):
             return image_path, "Skipped (JSON exists)"
 
-        # 2. Wczytanie obrazu
-        # Używamy cv2.imread, ponieważ tego oczekuje retina-face
-        img = cv2.imread(image_path)
-        if img is None:
+        # 2. Wczytanie obrazu (BGR)
+        img_bgr = cv2.imread(image_path)
+        if img_bgr is None:
             return image_path, "Failed to read image"
+        
+        # Poprawka: Konwersja BGR -> RGB (aby widział twarze)
+        img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
 
-        # 3. Detekcja twarzy
-        # `model.detect_faces` zwraca słownik, gdzie klucze to np. 'face_1', 'face_2'
-        faces = RetinaFace.detect_faces(img_path=img, threshold=0.5, model=model)
+        # Poprawka: Przygotowanie obrazu dla surowego modelu TF
+        # Konwersja na float32
+        
+
+        # 3. Detekcja twarzy (WŁAŚCIWA METODA)
+        # Wywołujemy surową funkcję tf.function załadowaną w run()
+        # To jest bezpieczne dla wątków i omija blokadę GIL.
+        faces = RetinaFace.detect_faces(img_path=img_rgb, model=model)
         
         if not isinstance(faces, dict) or not faces:
             return image_path, "No face detected"
@@ -68,9 +61,7 @@ def process_image(image_path):
         if best_face is None:
              return image_path, "Detection parsing error"
 
-        # 5. Przygotowanie danych do zapisu (bbox i landmarks)
-        # BBox to [x1, y1, x2, y2]
-        # Landmarks to słownik: 'right_eye', 'left_eye', 'nose', 'mouth_right', 'mouth_left'
+        # 5. Poprawka: Konwersja typów numpy na float dla JSON
         converted_landmarks = {
             key: [float(coord[0]), float(coord[1])] 
             for key, coord in best_face["landmarks"].items()
@@ -91,10 +82,26 @@ def process_image(image_path):
     except Exception as e:
         return image_path, f"Error: {str(e)}"
 
+# Ta funkcja jest poprawna
 def run():
     print(f"--- Etap 3: Przetwarzanie Obrazów (Detekcja Twarzy) ---")
     print(f"Używane urządzenie: {DEVICE}")
-    print(f"Liczba procesów roboczych: {NUM_WORKERS}")
+    print(f"Liczba wątków roboczych: {NUM_WORKERS}")
+
+    # 1. Ładujemy model JEDEN RAZ
+    print("Ładowanie modelu RetinaFace... (to może potrwać chwilę)")
+    try:
+        if DEVICE == 'cpu':
+            os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+        
+        # Poprawka: Ustawiamy próg (threshold) przy budowaniu modelu
+        # To zwróci surową funkcję tf.function
+        model = RetinaFace.build_model()
+        print("Model załadowany pomyślnie.")
+        
+    except Exception as e:
+        print(f"BŁĄD KRYTYCZNY: Nie udało się załadować modelu RetinaFace: {e}")
+        sys.exit(1)
 
     # Iterujemy zgodnie z wymaganą kolejnością
     for split in PROCESSING_ORDER:
@@ -105,10 +112,8 @@ def run():
         
         print(f"\nRozpoczynanie przetwarzania podziału: '{split}'...")
         
-        # 1. Znalezienie wszystkich obrazów w danym podziale
         image_files = []
         for ext in IMAGE_EXTENSIONS:
-            # Szukamy rekursywnie we wszystkich podfolderach (id_0, id_1, ...)
             pattern = os.path.join(split_dir, "**", f"*{ext}")
             image_files.extend(glob.glob(pattern, recursive=True))
         
@@ -118,14 +123,15 @@ def run():
             
         print(f"Znaleziono {len(image_files)} obrazów do przetworzenia.")
 
-        # 2. Uruchomienie puli procesów
-        # `initializer=init_worker` uruchomi funkcję `init_worker` raz w każdym procesie
-        with ProcessPoolExecutor(max_workers=NUM_WORKERS, initializer=init_worker) as executor:
+        # 2. Używamy ThreadPoolExecutor (puli WĄTKÓW)
+        with ThreadPoolExecutor(max_workers=NUM_WORKERS) as executor:
             
-            # Utworzenie zadań
-            futures = [executor.submit(process_image, img_path) for img_path in image_files]
+            # Przekazujemy ten JEDEN model do wszystkich wątków
+            futures = [
+                executor.submit(process_image, img_path, model) 
+                for img_path in image_files
+            ]
             
-            # Pasek postępu TQDM
             pbar = tqdm(total=len(futures), desc=f"Przetwarzanie {split}")
             
             # Zbieranie wyników
@@ -133,7 +139,6 @@ def run():
                 pbar.update(1)
                 img_path, status = future.result()
                 if status != "Success" and status != "Skipped (JSON exists)":
-                    # Logujemy tylko błędy, aby nie zaśmiecać konsoli
                     logging.warning(f"Problem z {img_path}: {status}")
             
             pbar.close()
