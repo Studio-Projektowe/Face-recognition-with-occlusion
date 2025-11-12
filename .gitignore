@@ -11,3 +11,6 @@ venv
 token.git.txt
 __pycache__
 insightface_models
+occlusion_photos
+.ipynb_checkpoints
+webface_112x112
