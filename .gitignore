@@ -9,3 +9,5 @@
 venv
 **/kaggle.json
 token.git.txt
+__pycache__
+insightface_models
