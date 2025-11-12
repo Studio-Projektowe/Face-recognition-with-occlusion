@@ -7,7 +7,6 @@ import logging
 import numpy as np  # Musimy to zaimportować
 from retinaface import RetinaFace
 from tqdm import tqdm
-# MUSI BYĆ WERSJA Z WĄTKAMI, ABY GPU DZIAŁAŁO
 from concurrent.futures import ThreadPoolExecutor, as_completed 
 from config import BASE_DATA_DIR, PROCESSING_ORDER, DEVICE, NUM_WORKERS, IMAGE_EXTENSIONS
 
@@ -38,10 +37,12 @@ def process_image(image_path, model):
         img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
 
         # Poprawka: Przygotowanie obrazu dla surowego modelu TF
+        # Konwersja na float32
+        
 
         # 3. Detekcja twarzy (WŁAŚCIWA METODA)
         # Wywołujemy surową funkcję tf.function załadowaną w run()
-        # To jest bezpieczne dla wątków.
+        # To jest bezpieczne dla wątków i omija blokadę GIL.
         faces = RetinaFace.detect_faces(img_path=img_rgb, model=model)
         
         if not isinstance(faces, dict) or not faces:
