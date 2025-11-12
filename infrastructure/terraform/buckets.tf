@@ -22,3 +22,21 @@ resource "google_storage_bucket" "casia_prepared_dataset_bucket" {
     }
   }
 }
+
+resource "google_storage_bucket" "test_bucket" {
+  name     = "test-bucket-${random_id.suffix.hex}"
+  location = "northamerica-northeast1"
+
+  force_destroy            = true
+  public_access_prevention = "enforced"
+  uniform_bucket_level_access = true
+
+  lifecycle_rule {
+    condition {
+      age = 120
+    }
+    action {
+      type = "Delete"
+    }
+  }
+}

@@ -1,4 +1,5 @@
 kaggle
+tf-keras
 tqdm
 numpy
 opencv-python-headless
