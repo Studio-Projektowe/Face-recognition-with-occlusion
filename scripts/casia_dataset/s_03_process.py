@@ -21,10 +21,7 @@ def init_worker():
     """Inicjalizuje model RetinaFace w każdym procesie roboczym."""
     global model
     try:
-        # Używamy `None` dla CPU (zgodnie z dokumentacją retina-face)
-        # lub 0 dla pierwszego GPU
-        gpu_id = 0 if DEVICE == 'cuda' else -1
-        model = RetinaFace.build_model(gpu_id=gpu_id)
+        model = RetinaFace.build_model()
         logging.info(f"Worker (PID: {os.getpid()}) loaded model on {DEVICE}.")
     except Exception as e:
         logging.error(f"Worker (PID: {os.getpid()}) failed to load model: {e}")
@@ -54,7 +51,7 @@ def process_image(image_path):
 
         # 3. Detekcja twarzy
         # `model.detect_faces` zwraca słownik, gdzie klucze to np. 'face_1', 'face_2'
-        faces = model.detect_faces(img)
+        faces = RetinaFace.detect_faces(img_path=img, threshold=0.5, model=model)
         
         if not isinstance(faces, dict) or not faces:
             return image_path, "No face detected"
@@ -74,9 +71,14 @@ def process_image(image_path):
         # 5. Przygotowanie danych do zapisu (bbox i landmarks)
         # BBox to [x1, y1, x2, y2]
         # Landmarks to słownik: 'right_eye', 'left_eye', 'nose', 'mouth_right', 'mouth_left'
+        converted_landmarks = {
+            key: [float(coord[0]), float(coord[1])] 
+            for key, coord in best_face["landmarks"].items()
+        }
+        
         output_data = {
             "bbox": [float(val) for val in best_face["facial_area"]],
-            "landmarks": best_face["landmarks"],
+            "landmarks": converted_landmarks,
             "confidence": float(best_face["score"])
         }
 
