@@ -29,7 +29,7 @@ def initialize_services():
             providers=providers
         )
         # Ustaw (640, 640) dla datasetu testowego lub (112, 112) dla WebFace
-        model.prepare(ctx_id=0, det_size=(112, 112)) 
+        model.prepare(ctx_id=0, det_size=(224,224)) 
     except Exception as e:
         print(f"BŁĄD: Nie udało się załadować modelu InsightFace.")
         print(f"Error: {e}")

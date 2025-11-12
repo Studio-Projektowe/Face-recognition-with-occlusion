@@ -2,7 +2,7 @@ import os
 
 # --- Konfiguracja Ścieżek Lokalnych ---
 # Główny folder datasetu, który zawiera podfoldery train/ val/ test/
-BASE_FOLDER_LOCAL = "webface_112x112" 
+BASE_FOLDER_LOCAL = "../../scripts/casia_dataset/webface_112x112" 
 # Możesz też ustawić pełną ścieżkę, np. "C:/Users/User/Projekty/webface_112x112"
 
 # --- Konfiguracja FAISS & Galerii ---
