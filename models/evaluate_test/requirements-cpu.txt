@@ -1,0 +1,9 @@
+toml
+insightface #--only-binary=:all:
+onnxruntime
+faiss
+faiss-cpu
+google-cloud-storage
+numpy
+opencv-python-headless
+tqdm
