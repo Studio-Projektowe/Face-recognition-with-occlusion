@@ -5,6 +5,7 @@
 *.tfvars
 *.tfvars.json
 
+nohup.out
 .env
 venv
 **/kaggle.json
