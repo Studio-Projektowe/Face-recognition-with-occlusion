@@ -6,3 +6,5 @@ google-cloud-storage
 numpy
 opencv-python-headless
 tqdm
+scikit-learn
+matplotlib
