@@ -1,0 +1,6 @@
+face-recognition
+dlib # face_recognition zainstaluje to automatycznie
+faiss-gpu # lub faiss-gpu, jeśli masz
+numpy<2.0 # Ważne, dlib często gryzie się z nowym numpy
+opencv-python-headless
+tqdm
