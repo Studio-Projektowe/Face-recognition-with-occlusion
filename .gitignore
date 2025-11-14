@@ -14,3 +14,6 @@ insightface_models
 occlusion_photos
 .ipynb_checkpoints
 webface_112x112
+scores/VGGFace/verification_scores.csv
+scores/preprocess_train_val_out/nohup.out
+scores/ArcFace_Small/verification_scores.csv

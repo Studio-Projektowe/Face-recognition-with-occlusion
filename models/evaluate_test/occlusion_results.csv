@@ -1,4 +1,0 @@
-query_id,top1_id,top1_similarity,top2_id,top2_similarity,top3_id,top3_similarity,is_correct_top1
-id_7,id_6,0.1031,id_5,0.0242,id_7,0.0165,False
-id_7,id_3,0.0271,id_7,-0.0152,id_6,-0.0162,False
-id_7,id_3,0.1050,id_5,0.0906,id_7,0.0248,False

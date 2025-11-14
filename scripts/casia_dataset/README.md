@@ -1,1 +1,0 @@
-4193/47913 - no face detected

@@ -1,0 +1,8 @@
+toml
+insightface
+onnxruntime-gpu  # Jeśli nie masz GPU NVIDIA, zmień to na "onnxruntime"
+faiss-gpu        # Jeśli nie masz GPU NVIDIA, zmień to na "faiss-cpu"
+google-cloud-storage
+numpy
+opencv-python-headless
+tqdm

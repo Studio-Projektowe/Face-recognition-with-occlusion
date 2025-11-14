@@ -1,0 +1,8 @@
+kaggle
+tf-keras
+tqdm
+numpy
+opencv-python-headless
+retina-face
+torch
+torchvision
