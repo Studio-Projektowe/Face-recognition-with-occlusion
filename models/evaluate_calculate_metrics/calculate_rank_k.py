@@ -1,6 +1,6 @@
 import csv
 import sys
-from models.ArcFace_Large.evaluation.config import RESULTS_CSV # Importuje nazwę pliku z config
+from config import RESULTS_CSV # Importuje nazwę pliku z config
 
 def calculate_rank_k_accuracy(csv_file):
     print(f"Wczytywanie wyników z: {csv_file}")
