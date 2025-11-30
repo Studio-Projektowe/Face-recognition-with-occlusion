@@ -2,7 +2,7 @@ import csv
 import sys
 import numpy as np
 from sklearn.metrics import roc_auc_score, roc_curve, accuracy_score
-from config import BASE_FOLDER_LOCAL # Import tylko dla spójności, nieużywany
+from config import BASE_FOLDER_LOCAL, VER_SCORES_CSV # Import tylko dla spójności, nieużywany
 
 def calculate_verification_metrics(csv_file):
     print(f"Wczytywanie wyników weryfikacji z: {csv_file}")
@@ -113,4 +113,4 @@ def calculate_verification_metrics(csv_file):
     
 
 if __name__ == "__main__":
-    calculate_verification_metrics("verification_scores.csv")
+    calculate_verification_metrics(VER_SCORES_CSV)

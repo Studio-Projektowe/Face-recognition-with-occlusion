@@ -12,5 +12,6 @@ FAISS_MAPPING_FILE = "../ArcFace_Small/gallery_id_map.json"
 # --- Konfiguracja Ewaluacji ---
 RESULTS_CSV = "../../scores/ArcFace_Small/occlusion_results.csv"
 OCCLUSION_SIZE = 30
+VER_SCORES_CSV = "../../scores/ArcFace_Small/verification_scores.csv"
 
 NUM_WORKERS = 4
