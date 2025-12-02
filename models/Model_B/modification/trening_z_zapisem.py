@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
+import torchvision.utils as vutils  # Do zapisywania siatki zdjęć
 import numpy as np
 import cv2
 import os
@@ -18,6 +19,7 @@ from podejscie_2 import load_clean_model, DEVICE
 BASE_DIR = 'webface_112x112'
 TRAIN_DIR = os.path.join(BASE_DIR, 'train')
 VAL_DIR = os.path.join(BASE_DIR, 'val')
+DEBUG_DIR = 'training_photos'  # Folder na podgląd zdjęć
 
 BATCH_SIZE = 32
 LR_HEAD = 0.01
@@ -74,7 +76,6 @@ class ArcMarginProduct(nn.Module):
         self.mm = np.sin(np.pi - m) * m
 
     def forward(self, input, label):
-        # input to embedding (512), output to logits (num_classes)
         cosine = torch.nn.functional.linear(torch.nn.functional.normalize(input), torch.nn.functional.normalize(self.weight))
         sine = torch.sqrt(1.0 - torch.pow(cosine, 2))
         phi = cosine * self.cos_m - sine * self.sin_m
@@ -98,21 +99,12 @@ class OcclusionFaceDataset(Dataset):
         self.is_validation = is_validation
         
         print(f"Skanowanie datasetu: {root_dir}...")
-        # Struktura: root / id_xxx / subfolder / img.jpg
-        # Glob szuka: root/*/*/*.jpg (3 poziomy)
         self.image_paths = glob.glob(os.path.join(root_dir, "*", "*", "*.jpg"))
         
         if not self.image_paths:
             print(f"⚠️ Nie znaleziono plików .jpg w {root_dir} (sprawdź strukturę katalogów!)")
         
-        # Wyciąganie nazw klas (folderów ID)
-        # path parts: .../train / id_001 / 001 / 001.jpg
-        # [-3] to id_001
         self.classes = sorted(list(set([path.split(os.sep)[-3] for path in self.image_paths])))
-        
-        # W treningu musimy mapować klasy na int. W walidacji (na nowych osobach)
-        # etykiety nie mają znaczenia dla klasyfikatora treningowego, 
-        # więc możemy je ignorować lub mapować tymczasowo.
         self.class_to_idx = {cls_name: i for i, cls_name in enumerate(self.classes)}
         
         print(f"Znaleziono {len(self.image_paths)} zdjęć w {len(self.classes)} tożsamościach.")
@@ -143,13 +135,7 @@ class OcclusionFaceDataset(Dataset):
 
     def __getitem__(self, idx):
         img_path = self.image_paths[idx]
-        
-        # Etykieta (Label)
-        # Wyciągamy 'id_001' ze ścieżki
         class_name = img_path.split(os.sep)[-3]
-        
-        # Jeśli to walidacja na nowych osobach, label jest umowny (np. 0),
-        # bo i tak nie będziemy liczyć ArcFace Loss na nieznanych ID.
         label = self.class_to_idx.get(class_name, -1)
         
         img = cv2.imread(img_path)
@@ -187,9 +173,7 @@ class FaceModelWithAux(nn.Module):
     def __init__(self, backbone, num_classes):
         super(FaceModelWithAux, self).__init__()
         self.backbone = backbone
-        # Głowa treningowa (ArcFace)
         self.arcface = ArcMarginProduct(512, num_classes)
-        # Głowa pomocnicza (Auxiliary)
         self.aux_head = nn.Sequential(
             nn.Linear(512, 256),
             nn.ReLU(),
@@ -198,19 +182,14 @@ class FaceModelWithAux(nn.Module):
         )
 
     def forward(self, x, labels=None):
-        # 1. Backbone -> Embedding 512
         features = self.backbone(x)
         features_flat = features.view(features.size(0), -1)
         
-        # 2. Aux Head -> Przewidywanie maski
         mask_pred = self.aux_head(features_flat)
         
-        # 3. Jeśli trening (są etykiety) -> ArcFace Logits
         if labels is not None:
             arcface_out = self.arcface(features_flat, labels)
             return arcface_out, mask_pred
-        
-        # 4. Jeśli walidacja/inferencja (brak etykiet) -> Czysty Embedding
         else:
             return features_flat, mask_pred
 
@@ -221,7 +200,6 @@ def freeze_layers(model):
     trainable = 0
     for name, param in model.named_parameters():
         param.requires_grad = False
-        # Trenujemy: SE (uwaga), głębokie warstwy (layer3/4), BN i FC
         if 'se' in name or 'layer3' in name or 'layer4' in name or 'bn' in name or 'fc' in name:
             param.requires_grad = True
         if param.requires_grad:
@@ -232,6 +210,9 @@ def freeze_layers(model):
 
 # --- 5. GŁÓWNA FUNKCJA ---
 def main():
+    # Przygotowanie folderu na podgląd
+    os.makedirs(DEBUG_DIR, exist_ok=True)
+    
     # Ładowanie Backbone
     backbone = load_clean_model()
     freeze_layers(backbone)
@@ -251,7 +232,6 @@ def main():
         val_dataset = OcclusionFaceDataset(VAL_DIR, transform=transform, is_validation=True)
         val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=NUM_WORKERS)
         
-        # Liczba klas tylko z treningu (ArcFace uczy się tylko znanych tożsamości)
         num_classes = len(train_dataset.classes)
     else:
         print(f"⚠️ Błąd ścieżek! Sprawdź czy istnieją:\n {TRAIN_DIR}\n {VAL_DIR}")
@@ -278,19 +258,31 @@ def main():
         train_loss_cls = 0.0
         train_loss_aux = 0.0
         
+        # Używamy enumerate, żeby złapać pierwszy batch w epoce
         progress_bar = tqdm(train_loader, desc=f"Epoka {epoch+1}/{EPOCHS} [Train]")
-        for imgs, labels, mask_targets in progress_bar:
+        
+        for batch_idx, (imgs, labels, mask_targets) in enumerate(progress_bar):
             imgs, labels = imgs.to(DEVICE), labels.to(DEVICE)
             mask_targets = mask_targets.to(DEVICE)
             
+            # --- ZAPISUJEMY PODGLĄD ZDJĘĆ (Raz na epokę) ---
+            if batch_idx == 0:
+                # Bierzemy max 20 zdjęć
+                debug_imgs = imgs[:20].clone().cpu()
+                # Denormalizacja: (x * 0.5) + 0.5, żeby wrócić do zakresu [0, 1]
+                debug_imgs = debug_imgs * 0.5 + 0.5
+                
+                save_path = os.path.join(DEBUG_DIR, f"epoch_{epoch+1:02d}_sample.jpg")
+                vutils.save_image(debug_imgs, save_path, nrow=5)
+                # print(f"   [INFO] Zapisano próbkę zdjęć treningowych do: {save_path}") # Opcjonalne info w konsoli
+            # -----------------------------------------------
+            
             optimizer.zero_grad()
-            # Podajemy labels -> model zwraca logits (do ArcFace)
             logits, mask_pred = full_model(imgs, labels)
             
             loss_face = criterion_cls(logits, labels)
             loss_aux = criterion_aux(mask_pred, mask_targets)
             
-            # Waga AuxLoss (0.1)
             total_loss = loss_face + 0.1 * loss_aux
             total_loss.backward()
             optimizer.step()
@@ -308,16 +300,13 @@ def main():
                 imgs = imgs.to(DEVICE)
                 mask_targets = mask_targets.to(DEVICE)
                 
-                # NIE podajemy labels -> model zwraca embedding (ignorujemy go) i mask_pred
                 _, mask_pred = full_model(imgs, labels=None)
                 
-                # Na walidacji (nowe osoby) liczymy TYLKO Aux Loss
-                # Sprawdzamy, czy model "rozumie" okluzję na nieznanych twarzach
                 v_loss_aux = criterion_aux(mask_pred, mask_targets)
                 val_loss_aux += v_loss_aux.item()
         
         avg_train_loss = (train_loss_cls + 0.1 * train_loss_aux) / len(train_loader)
-        avg_val_loss = val_loss_aux / len(val_loader) # Tylko Aux Loss
+        avg_val_loss = val_loss_aux / len(val_loader)
         
         print(f"📊 Podsumowanie epoki {epoch+1}:")
         print(f"   Train Loss (Total): {avg_train_loss:.4f} | Val Loss (Aux Only): {avg_val_loss:.4f}")
