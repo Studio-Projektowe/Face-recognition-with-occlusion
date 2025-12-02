@@ -16,7 +16,7 @@ from tqdm import tqdm
 from models.Model_B.modification.load_and_test import load_clean_model, DEVICE
 
 # --- KONFIGURACJA ---
-BASE_DIR = 'webface_112x112'
+BASE_DIR = '../../../scripts/casia_dataset/webface_112x112'
 TRAIN_DIR = os.path.join(BASE_DIR, 'train')
 VAL_DIR = os.path.join(BASE_DIR, 'val')
 DEBUG_DIR = 'training_photos'  # Folder na podgląd zdjęć
@@ -247,7 +247,7 @@ def main():
     trainable_params = [p for p in full_model.parameters() if p.requires_grad]
     optimizer = optim.SGD(trainable_params, lr=LR_BACKBONE, momentum=0.9, weight_decay=5e-4)
     
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=2, verbose=True)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=2)
     early_stopping = EarlyStopping(patience=PATIENCE, path='best_model_se_occlusion.pth')
 
     print(f"\n🚀 Rozpoczynamy trening na {EPOCHS} epok...")

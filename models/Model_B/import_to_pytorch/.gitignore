@@ -1,0 +1,5 @@
+buffalo_l/
+evaluation_photos_res50/
+training_photos/
+best_model_se_occlusion.pth
+nohup.out
