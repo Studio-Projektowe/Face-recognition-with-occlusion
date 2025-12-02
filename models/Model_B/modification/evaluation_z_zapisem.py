@@ -50,6 +50,7 @@ def initialize_services():
             sys.exit(1)
 
         # ZMIANA 2: Inicjalizacja pustego modelu (architektura z backbone_iresnet.py)
+        # Ustawiamy weights_path=None, bo ładujemy ręcznie poniżej
         model = iresnet50(weights_path=None) 
         
         # ZMIANA 3: Ładowanie wag z treningu
@@ -130,15 +131,16 @@ def image_to_embedding(model, img_bgr, bbox=None, landmarks=None):
         # Preprocessing: ArcFace typical: (img - 127.5) / 127.5  and swap to CHW
         face = face.astype(np.float32)
         face = (face - 127.5) / 127.5
-        # HWC -> CHW
-        # face = face[:, :, ::-1]  # Opcjonalne: BGR -> RGB. 
-        # UWAGA: Twój trening używał transforms.ToTensor() na RGB. 
+        
+        # ZMIANA: Zgodność z treningiem.
+        # W treningu używaliśmy transforms.ToTensor() na obrazie RGB.
         # transforms.ToTensor() konwertuje [0, 255] -> [0, 1].
         # transforms.Normalize([0.5], [0.5]) robi (x - 0.5) / 0.5.
-        # Wzór (x - 127.5) / 127.5 na pikselach [0, 255] daje ten sam wynik matematyczny co w treningu.
-        # Jedyna różnica to BGR vs RGB. Skoro w treningu konwertowaliśmy na RGB:
-        face = face[:, :, ::-1] # Zamiana BGR na RGB (zgodność z treningiem)
+        # Wzór (x - 127.5) / 127.5 na pikselach [0, 255] daje matematycznie to samo.
+        # Jedyna różnica to BGR vs RGB. Skoro trening był na RGB, tu też konwertujemy.
+        face = face[:, :, ::-1] # Zamiana BGR na RGB
         
+        # HWC -> CHW
         face = np.transpose(face, (2, 0, 1))
         tensor = torch.from_numpy(face.copy()).unsqueeze(0).to(DEVICE)
 
