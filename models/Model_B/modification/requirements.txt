@@ -1,7 +1,0 @@
-onnx2pytorch
-opencv-python
-numpy
-faiss-cpu
-insightface
-onnxruntime
-google-cloud-storage
