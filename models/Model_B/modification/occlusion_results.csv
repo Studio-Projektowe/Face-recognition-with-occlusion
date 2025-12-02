@@ -1,7 +1,0 @@
-query_id,top1_id,top1_similarity,top2_id,top2_similarity,top3_id,top3_similarity,is_correct_top1
-id_3,id_6,0.0000,id_5,0.0000,id_3,0.0000,False
-id_5,id_6,0.0000,id_5,0.0000,id_3,0.0000,False
-id_7,id_6,0.0000,id_5,0.0000,id_3,0.0000,False
-id_7,id_6,0.0000,id_5,0.0000,id_3,0.0000,False
-id_7,id_6,0.0000,id_5,0.0000,id_3,0.0000,False
-id_7,id_6,0.0000,id_5,0.0000,id_3,0.0000,False

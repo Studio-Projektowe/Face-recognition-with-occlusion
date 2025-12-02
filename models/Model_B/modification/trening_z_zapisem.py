@@ -13,7 +13,7 @@ import random
 from tqdm import tqdm
 
 # Importujemy Twój loader i architekturę
-from podejscie_2 import load_clean_model, DEVICE
+from models.Model_B.modification.load_and_test import load_clean_model, DEVICE
 
 # --- KONFIGURACJA ---
 BASE_DIR = 'webface_112x112'
