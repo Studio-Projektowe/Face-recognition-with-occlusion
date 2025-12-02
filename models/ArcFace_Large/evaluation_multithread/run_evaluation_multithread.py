@@ -25,7 +25,7 @@ def initialize_services():
     try:
         providers = ['CUDAExecutionProvider', 'CPUExecutionProvider']
         model = insightface.app.FaceAnalysis(
-            name="buffalo_s", # Używamy 'buffalo_s', który jest bardziej stabilny
+            name="buffalo_l",
             root='./insightface_models', 
             providers=providers
         )
