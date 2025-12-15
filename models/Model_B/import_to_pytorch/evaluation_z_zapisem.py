@@ -203,7 +203,7 @@ def build_gallery(model, identity_to_folders, image_pairs):
                 emb = image_to_embedding(model, img, bbox)
                 if emb is not None:
                     id_vectors.append(emb)
-        
+
         # Uśredniamy wektory dla jednej osoby (tworzymy prototyp)
         if id_vectors:
             avg_emb = np.mean(np.stack(id_vectors), axis=0)

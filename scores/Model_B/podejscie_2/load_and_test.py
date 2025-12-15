@@ -13,7 +13,7 @@ from backbone_iresnet import iresnet50
 
 # --- KONFIGURACJA ---
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-LOCAL_WEIGHTS_PATH = 'w600k_r50_from_onnx.pth'
+LOCAL_WEIGHTS_PATH = 'best_model_res50_occlusion.pth'
 EXAMPLE_IMG_PATH = 'example.jpg'
 REFERENCE_EMBEDDING_SAMPLE = np.array([0.0076, -0.0122, 0.0345, -0.0511, 0.0210, -0.0049])
 
@@ -82,7 +82,7 @@ def sanitize_model(model):
     print(f"✅ Szpital zakończony. Wprowadzono {fixes} poprawek.")
 
 def smart_load_hybrid_v4(model, state_dict_path):
-    print(f"🔧 Uruchamiam HYBRID LOAD v5 (Greedy + Reinit + DETAILED REPORT) z: {state_dict_path}")
+    print(f"🔧 Uruchamiam HYBRID LOAD v5 (Greedy + Reinit + Verbose Stats) z: {state_dict_path}")
     
     try:
         source_state = torch.load(state_dict_path, map_location='cpu')
@@ -96,101 +96,82 @@ def smart_load_hybrid_v4(model, state_dict_path):
     new_state_dict = OrderedDict()
     
     source_keys = list(source_state.keys())
-    all_target_keys = list(target_state.keys())
     
-    # Filtrujemy klucze techniczne (num_batches_tracked), bo one zaciemniają obraz
+    # --- NOWE: Statystyka przed filtracją ---
+    all_target_keys = list(target_state.keys())
+    batch_track_keys = [k for k in all_target_keys if 'num_batches_tracked' in k]
     target_keys = [k for k in all_target_keys if 'num_batches_tracked' not in k]
     
-    used_source_keys = set()
-    matched_target_keys = set()
+    print(f"📊 Statystyka warstw w modelu PyTorch:")
+    print(f"   - Wszystkie parametry: {len(all_target_keys)}")
+    print(f"   - Liczniki techniczne (ignorowane): {len(batch_track_keys)} (num_batches_tracked)")
+    print(f"   - Istotne wagi do załadowania: {len(target_keys)}")
     
-    # --- ETAP 1: Nazwy (znormalizowane) ---
+    if len(target_keys) + len(batch_track_keys) != len(all_target_keys):
+        print("   ⚠️ Uwaga: Suma się nie zgadza, coś dziwnego w kluczach.")
+
+    used_source_keys = set()
+    matched_count = 0
+    
+    # --- ETAP 1: Nazwy ---
     print("   ... Etap 1: Dopasowanie znormalizowanych nazw ...")
     source_norm_map = {normalize_name(k): k for k in source_keys}
     
     for t_key in target_keys:
         t_shape = target_state[t_key].shape
         t_norm = normalize_name(t_key)
+        candidates = [t_norm]
         
-        if t_norm in source_norm_map:
-            original_source_key = source_norm_map[t_norm]
-            s_tensor = source_state[original_source_key]
-            if s_tensor.shape == t_shape:
-                new_state_dict[t_key] = s_tensor
-                used_source_keys.add(original_source_key)
-                matched_target_keys.add(t_key)
-
-    # --- ETAP 2: Greedy (Kształt) ---
-    print("   ... Etap 2: Chciwe dopasowanie kształtu dla pozostałych ...")
-    remaining_source = []
-    for k in source_keys:
-        if k not in used_source_keys:
-            remaining_source.append((k, source_state[k]))
-    remaining_source.sort(key=lambda x: x[0]) # Sortujemy, żeby mieć determinizm
-    
-    for t_key in target_keys:
-        if t_key in matched_target_keys: continue
+        for cand in candidates:
+            if cand in source_norm_map:
+                original_source_key = source_norm_map[cand]
+                s_tensor = source_state[original_source_key]
+                if s_tensor.shape == t_shape:
+                    new_state_dict[t_key] = s_tensor
+                    used_source_keys.add(original_source_key)
+                    matched_count += 1
+                    break
         
-        t_shape = target_state[t_key].shape
-        for idx, (s_key, s_tensor) in enumerate(remaining_source):
-            if s_tensor.shape == t_shape:
-                new_state_dict[t_key] = s_tensor
-                used_source_keys.add(s_key)
-                matched_target_keys.add(t_key)
-                remaining_source.pop(idx) # Usuwamy z puli, żeby nie użyć 2 razy
-                break
+    print(f"   -> Po Etapie 1 zmapowano: {matched_count} warstw.")
 
-    # --- ETAP 3: Ładowanie ---
+    # --- ETAP 2: Greedy ---
+    if matched_count < len(target_keys):
+        print("   ... Etap 2: Chciwe dopasowanie kształtu ...")
+        remaining_source = []
+        for k in source_keys:
+            if k not in used_source_keys:
+                remaining_source.append((k, source_state[k]))
+        remaining_source.sort(key=lambda x: x[0])
+        
+        for t_key in target_keys:
+            if t_key in new_state_dict: continue
+            
+            t_shape = target_state[t_key].shape
+            for idx, (s_key, s_tensor) in enumerate(remaining_source):
+                if s_tensor.shape == t_shape:
+                    new_state_dict[t_key] = s_tensor
+                    used_source_keys.add(s_key)
+                    matched_count += 1
+                    remaining_source.pop(idx)
+                    break
+                    
+    print(f"✅ ŁĄCZNIE Zmapowano {matched_count} z {len(target_keys)} istotnych warstw.")
+
+    # --- ETAP 3: Ładowanie i Re-inicjalizacja ---
+    missing_keys = [k for k in target_keys if k not in new_state_dict]
     model.load_state_dict(new_state_dict, strict=False)
-
-    # --- RAPORT DIAGNOSTYCZNY (To o co prosiłeś) ---
-    print("\n" + "="*60)
-    print("📊 SZCZEGÓŁOWY RAPORT DOPASOWANIA WAG")
-    print("="*60)
-
-    # 1. Wagi z pliku, które nie zostały użyte
-    unused_source = set(source_keys) - used_source_keys
-    # Filtrujemy num_batches_tracked z source też, bo to często śmieci
-    unused_source = [k for k in unused_source if 'num_batches_tracked' not in k]
     
-    print(f"\n❌ [PLIK -> KOSZ] Wagi z pliku ONNX/PTH nieużyte w modelu ({len(unused_source)}):")
-    if len(unused_source) > 0:
-        for k in sorted(unused_source):
-            print(f"   - {k} {source_state[k].shape}")
-    else:
-        print("   (Wszystkie istotne wagi z pliku zostały wykorzystane!)")
-
-    # 2. Warstwy modelu, które nie dostały wag
-    unassigned_target = set(target_keys) - matched_target_keys
-    
-    print(f"\n⚠️ [MODEL -> PUSTE] Warstwy modelu bez wczytanych wag ({len(unassigned_target)}):")
-    if len(unassigned_target) > 0:
-        for k in sorted(unassigned_target):
-            print(f"   - {k} {target_state[k].shape}")
-        print("\n   👉 Te warstwy zostaną zreinicjalizowane losowo (Kaiming/Normal).")
-    else:
-        print("   (Wszystkie warstwy modelu mają przypisane wagi!)")
-        
-    print("="*60 + "\n")
-
-    # --- ETAP 4: Re-inicjalizacja pustych ---
     reinit_count = 0
     for name, module in model.named_modules():
-        # Sprawdzamy czy moduł ma wagi, które są na liście brakujących
-        has_missing_weights = False
-        for param_name, _ in module.named_parameters(recurse=False):
-            full_param_name = f"{name}.{param_name}" if name else param_name
-            if full_param_name in unassigned_target:
-                has_missing_weights = True
-                break
-        
-        if has_missing_weights:
+        weight_key = f"{name}.weight" if name else "weight"
+        # Jeśli brakuje wagi LUB waga została załadowana jako 'sierota' ale chcemy mieć pewność
+        if weight_key in missing_keys:
             reset_layer_params(module, name)
             reinit_count += 1
             
-    print(f"✅ Zreinicjalizowano {reinit_count} modułów, którym brakowało wag.")
+    print(f"✅ Zreinicjalizowano {reinit_count} modułów.")
     
-    # KROK 5: SZPITAL
+    # KROK 4: SZPITAL (Obowiązkowy przy problemach z NaN)
     sanitize_model(model)
 
     return True
