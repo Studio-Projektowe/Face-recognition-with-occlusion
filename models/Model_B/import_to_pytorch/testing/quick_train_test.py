@@ -4,7 +4,7 @@ import torch.optim as optim
 import numpy as np
 import cv2
 from models.Model_B.modification.load_and_test import load_clean_model, DEVICE
-from compare_models import prepare_image, get_insightface_embedding, compare_embeddings
+from models.Model_B.import_to_pytorch.testing.compare_models import prepare_image, get_insightface_embedding, compare_embeddings
 
 def main():
     print("--- TEST: Czy ten model w ogóle potrafi się uczyć? ---")

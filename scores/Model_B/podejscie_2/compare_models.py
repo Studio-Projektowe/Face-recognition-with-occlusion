@@ -7,7 +7,7 @@ from insightface.app import FaceAnalysis
 import sys
 
 # Importujemy Twój loader
-from models.Model_B.modification.load_and_test import load_clean_model, DEVICE
+from load_and_test import load_clean_model, DEVICE
 
 # --- KONFIGURACJA ---
 IMG_PATH = 'example.jpg'  # Upewnij się, że masz tu jakieś zdjęcie twarzy (najlepiej wycięte 112x112)
