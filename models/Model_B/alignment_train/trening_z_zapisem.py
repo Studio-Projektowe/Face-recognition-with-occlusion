@@ -27,7 +27,7 @@ LR_HEAD = 0.01
 LR_BACKBONE = 0.001
 EPOCHS = 25
 OCCLUSION_PROB = 0.7
-OCCLUSION_HEIGHT = 20
+OCCLUSION_HEIGHT = 25
 NUM_WORKERS = 4
 PATIENCE = 5
 
@@ -193,19 +193,42 @@ class OcclusionFaceDataset(Dataset):
         label = self.class_to_idx.get(class_name, -1)
         
         img = cv2.imread(img_path)
-        if img is None: img = np.zeros((112, 112, 3), dtype=np.uint8)
+        if img is None: 
+            # Stwórz czarny obraz jeśli plik jest uszkodzony
+            img = np.zeros((112, 112, 3), dtype=np.uint8)
+            print(f"❌ BŁĄD: Nie można wczytać zdjęcia: {img_path}")
             
         json_path = img_path.replace('.jpg', '.json')
-        final_img = cv2.resize(img, (112, 112))
         
+        # Domyślnie robimy resize (jeśli alignment się nie uda)
+        final_img = cv2.resize(img, (112, 112))
+        alignment_success = False # Flaga do sprawdzenia czy się udało
+
         if os.path.exists(json_path):
             try:
                 with open(json_path, 'r') as f:
                     data = json.load(f)
+                    # Obsługa różnych formatów JSONa
                     landmarks = data.get('landmarks', data)
-                    final_img = self.align_face(img, landmarks)
-            except: pass
+                    
+                    # Próba alignmentu
+                    aligned = self.align_face(img, landmarks)
+                    if aligned is not None and aligned.shape[0] > 0:
+                        final_img = aligned
+                        alignment_success = True
+                    else:
+                        print(f"⚠️ Alignment zwrócił puste zdjęcie dla: {img_path}")
+            except Exception as e:
+                # TERAZ WIDZISZ BŁĄD!
+                print(f"⚠️ Błąd podczas alignmentu {img_path}: {e}")
+        else:
+            # Jeśli wchodzisz tutaj, to znaczy że nie masz plików JSON!
+            # Odkomentuj linię niżej tylko do testów, żeby nie spamowało konsoli
+            print(f"⚠️ Brak pliku JSON dla: {img_path}") 
+            pass
 
+        # ... reszta kodu z okluzją bez zmian ...
+        
         mask_target = np.zeros((7, 7), dtype=np.float32) 
         if random.random() < OCCLUSION_PROB:
             final_img, full_mask = self.apply_random_occlusion(final_img)
@@ -259,8 +282,8 @@ def main():
     trainable_params = [p for p in full_model.parameters() if p.requires_grad]
     optimizer = optim.SGD(trainable_params, lr=LR_BACKBONE, momentum=0.9, weight_decay=5e-4)
     
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=2, verbose=True)
-    early_stopping = EarlyStopping(patience=PATIENCE, path='best_model_se_occlusion.pth')
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=2)
+    early_stopping = EarlyStopping(patience=PATIENCE, path='best_model_align_occlusion.pth')
 
     history = {'train_loss': [], 'train_acc': [], 'val_loss': [], 'val_acc': []}
 
