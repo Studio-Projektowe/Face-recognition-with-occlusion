@@ -10,68 +10,54 @@ import numpy as np
 import cv2
 import faiss
 from tqdm import tqdm
-import torch
-
-# Importujemy architekturę (upewnij się, że to wersja z CBAM!)
-from backbone_iresnet import iresnet50
+import insightface
+from insightface.app import FaceAnalysis
 
 # --- KONFIGURACJA ---
-BASE_DIR = '../../../../webface_112x112'
-TEST_DIR = os.path.join(BASE_DIR, 'test') # Ewaluacja na zbiorze testowym
-
-# Ścieżka do modelu CBAM (wynik ostatniego treningu)
-MODEL_PATH = 'best_model_res50_occlusion.pth'
+BASE_DIR = '../../../../webface_112x112' # Twoja ścieżka
+TEST_DIR = os.path.join(BASE_DIR, 'test') 
 
 # Pliki wyjściowe
-FAISS_INDEX_FILE = "gallery_res50_3.index"
-FAISS_MAPPING_FILE = "gallery_res50_map_3.json"
-RESULTS_CSV = "results_res50_occlusion_top3.csv"
-OUTPUT_OCCLUSION_DIR = "evaluation_photos_res50"
+FAISS_INDEX_FILE = "gallery_buffalo.index"
+FAISS_MAPPING_FILE = "gallery_buffalo_map.json"
+RESULTS_CSV = "results_buffalo_occlusion.csv"
+OUTPUT_OCCLUSION_DIR = "evaluation_photos_buffalo"
 
-OCCLUSION_SIZE = 20 # Dopasowane do treningu
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+OCCLUSION_SIZE = 20
+# Wybór providera dla ONNX Runtime
+PROVIDERS = ['CUDAExecutionProvider', 'CPUExecutionProvider']
 
 # ---------------------------
-# 1. Inicjalizacja Modelu
+# 1. Inicjalizacja Modelu (InsightFace)
 # ---------------------------
-def initialize_model():
-    print("Ładowanie modelu IResNet50...")
+def initialize_insightface():
+    print("🚀 Ładowanie oryginalnego modelu InsightFace (buffalo_l)...")
     
-    if not os.path.exists(MODEL_PATH):
-        print(f"BŁĄD: Nie znaleziono pliku wag: {MODEL_PATH}")
+    # Inicjalizujemy całą aplikację, ale interesuje nas tylko Recognition
+    app = FaceAnalysis(name='buffalo_l', providers=PROVIDERS)
+    
+    # prepare z det_size=(640,640) jest standardem, choć tu użyjemy tylko rec
+    app.prepare(ctx_id=0, det_size=(640, 640))
+    
+    # Wyciągamy konkretny model do rozpoznawania (ArcFace ResNet50)
+    # W pakiecie buffalo_l kluczem jest zazwyczaj 'recognition'
+    rec_model = app.models.get('recognition')
+    
+    if rec_model is None:
+        print("❌ Błąd: Nie znaleziono modelu 'recognition' w pakiecie buffalo_l.")
         sys.exit(1)
-
-    try:
-        print("Inicjalizacja")
-        # Inicjalizacja pustego modelu (architektura z pliku backbone_iresnet.py)
-        model = iresnet50(weights_path=None) 
-        print("ładowanie wag")
-        # Ładowanie wag
-        checkpoint = torch.load(MODEL_PATH, map_location=DEVICE)
-        print("Załadowano")
-        # Obsługa formatu state_dict
-        if isinstance(checkpoint, dict) and 'state_dict' in checkpoint:
-            checkpoint = checkpoint['state_dict']
-            
-        model.load_state_dict(checkpoint)
-        print(f" Pomyślnie załadowano wagi: {MODEL_PATH}")
-
-        model.to(DEVICE)
-        model.eval() # Tryb ewaluacji (wyłącza Dropout/Batch Norm update)
-        return model
-
-    except Exception as e:
-        print(f"BŁĄD krytyczny modelu: {e}")
-        sys.exit(1)
+        
+    print(f"✅ Załadowano model: {rec_model.input_shape} -> {rec_model.output_shape}")
+    return rec_model
 
 # ---------------------------
 # 2. Funkcje Przetwarzania Obrazu
 # ---------------------------
 def preprocess_face_from_bbox(img, bbox, output_size=112, pad_ratio=0.2):
+    # Ta funkcja pozostaje bez zmian, aby wyciąć twarz tak samo jak w Twoim treningu
     h, w = img.shape[:2]
     x1, y1, x2, y2 = [int(v) for v in bbox]
     
-    # Margines
     bw = x2 - x1
     bh = y2 - y1
     pad_w = int(bw * pad_ratio)
@@ -88,46 +74,44 @@ def preprocess_face_from_bbox(img, bbox, output_size=112, pad_ratio=0.2):
 
     return cv2.resize(crop, (output_size, output_size), interpolation=cv2.INTER_LINEAR)
 
-def image_to_embedding(model, img_bgr, bbox=None):
+def image_to_embedding(rec_model, img_bgr, bbox=None):
     try:
+        # 1. KROK: Wycięcie i skalowanie do 112x112
         if bbox is not None:
             face = preprocess_face_from_bbox(img_bgr, bbox, output_size=112)
         else:
             face = cv2.resize(img_bgr, (112, 112))
 
-        # Preprocessing zgodny z treningiem:
-        # transforms.ToTensor() -> [0,1], Normalize(0.5, 0.5) -> (x - 0.5)/0.5
-        # To matematycznie to samo co (x - 127.5) / 127.5 na pikselach [0, 255]
-        face = face.astype(np.float32)
-        face = (face - 127.5) / 127.5
+        # 2. KROK: Inferencja InsightFace
+        # Biblioteka InsightFace (handler ONNX) oczekuje czystego obrazu BGR (numpy).
+        # Sama robi normalizację (div 127.5) i transpozycję (HWC->CHW).
+        # Metoda get_feat zwraca od razu embedding.
         
-        # Konwersja BGR -> RGB (ważne, bo trening był na RGB!)
-        face = face[:, :, ::-1] 
+        emb = rec_model.get_feat(face)
         
-        # HWC -> CHW
-        face = np.transpose(face, (2, 0, 1))
-        tensor = torch.from_numpy(face.copy()).unsqueeze(0).to(DEVICE)
-
-        with torch.no_grad():
-            emb = model(tensor)
-            if isinstance(emb, (list, tuple)):
-                emb = emb[0]
-            emb = emb.cpu().numpy().reshape(-1)
-            # Normalizacja L2 wektora
-            emb = emb / (np.linalg.norm(emb) + 1e-10)
-            return emb.astype('float32')
+        # Jeśli z jakiegoś powodu zwróci listę (zależy od wersji), spłaszczamy
+        if isinstance(emb, list):
+            emb = emb[0]
+            
+        emb = emb.flatten()
+        
+        # 3. KROK: Normalizacja L2 (Ważne dla Cosine Similarity)
+        # Oryginalny model zazwyczaj zwraca już znormalizowane, ale dla pewności:
+        norm = np.linalg.norm(emb)
+        if norm > 0:
+            emb /= norm
+            
+        return emb.astype('float32')
             
     except Exception as e:
         print(f"Warning: Błąd embeddingu: {e}")
         return None
 
 # ---------------------------
-# 3. Odkrywanie Plików Lokalnych
+# 3. Odkrywanie Plików (Bez zmian)
 # ---------------------------
 def discover_file_structure(local_root):
     print(f"Skanowanie folderu: {local_root}...")
-    
-    # Wzorzec: root/id_xxx/subfolder/img.jpg
     search_pattern = os.path.join(local_root, "*", "*", "*.jpg")
     all_files = glob.glob(search_pattern)
     
@@ -140,14 +124,10 @@ def discover_file_structure(local_root):
 
     for jpg_path in tqdm(all_files, desc="Indeksowanie plików"):
         jpg_path = os.path.normpath(jpg_path)
-        
-        # Struktura: .../test / id_001 / 001 / image.jpg
-        # Wyciągamy 'id_001' (parent parent) i folder obrazu (parent)
         img_dir = os.path.dirname(jpg_path)
         id_dir = os.path.dirname(img_dir)
         identity_id = os.path.basename(id_dir)
         
-        # Szukamy JSON
         json_path = jpg_path.replace('.jpg', '.json')
         
         if identity_id not in identity_to_folders:
@@ -166,8 +146,8 @@ def discover_file_structure(local_root):
 # ---------------------------
 # 4. Budowanie Galerii (FAISS)
 # ---------------------------
-def build_gallery(model, identity_to_folders, image_pairs):
-    print("\n--- KROK 1: Budowanie Galerii FAISS (Czyste zdjęcia) ---")
+def build_gallery(rec_model, identity_to_folders, image_pairs):
+    print("\n--- KROK 1: Budowanie Galerii FAISS (Buffalo_L) ---")
     
     gallery_embeddings = []
     index_to_id_map = {}
@@ -175,8 +155,6 @@ def build_gallery(model, identity_to_folders, image_pairs):
     
     for identity_id in tqdm(identity_to_folders.keys(), desc="Przetwarzanie ID"):
         folders = sorted(list(identity_to_folders[identity_id]))
-        
-        # Bierzemy PIERWSZĄ POŁOWĘ folderów jako galerię (wzorzec)
         split_point = max(1, len(folders) // 2)
         gallery_folders = folders[:split_point]
         
@@ -196,20 +174,18 @@ def build_gallery(model, identity_to_folders, image_pairs):
                             bbox = data.get('bbox')
                     except: pass
                 
-                emb = image_to_embedding(model, img, bbox)
+                emb = image_to_embedding(rec_model, img, bbox)
                 if emb is not None:
                     id_vectors.append(emb)
         
-        # Uśredniamy wektory dla jednej osoby (tworzymy prototyp)
         if id_vectors:
             avg_emb = np.mean(np.stack(id_vectors), axis=0)
-            avg_emb = avg_emb / np.linalg.norm(avg_emb) # Renormalizacja
+            avg_emb = avg_emb / (np.linalg.norm(avg_emb) + 1e-10)
             
             gallery_embeddings.append(avg_emb)
             index_to_id_map[str(idx_counter)] = identity_id
             idx_counter += 1
             
-    # Tworzenie indeksu FAISS
     if not gallery_embeddings:
         print("Błąd: Pusta galeria.")
         return False
@@ -217,7 +193,7 @@ def build_gallery(model, identity_to_folders, image_pairs):
     matrix = np.array(gallery_embeddings).astype('float32')
     dim = matrix.shape[1]
     
-    index = faiss.IndexFlatIP(dim) # Inner Product (Cosine Similarity dla znormalizowanych)
+    index = faiss.IndexFlatIP(dim)
     index.add(matrix)
     
     faiss.write_index(index, FAISS_INDEX_FILE)
@@ -228,12 +204,11 @@ def build_gallery(model, identity_to_folders, image_pairs):
     return True
 
 # ---------------------------
-# 5. Funkcja Nakładania Okluzji
+# 5. Funkcja Nakładania Okluzji (Bez zmian)
 # ---------------------------
 def apply_occlusion(image, landmarks_dict, bbox):
     occ_img = image.copy()
     try:
-        # Obsługa różnych formatów kluczy w JSON
         leye = landmarks_dict.get('left_eye') or landmarks_dict.get('left')
         reye = landmarks_dict.get('right_eye') or landmarks_dict.get('right')
         
@@ -247,7 +222,6 @@ def apply_occlusion(image, landmarks_dict, bbox):
         y_start = max(0, cy - h_half)
         y_end = min(image.shape[0], cy + h_half)
         
-        # Czarny pasek (symulacja okularów VR/opaski)
         cv2.rectangle(occ_img, (x1, y_start), (x2, y_end), (0, 0, 0), -1)
         
     except Exception:
@@ -255,34 +229,26 @@ def apply_occlusion(image, landmarks_dict, bbox):
     return occ_img
 
 # ---------------------------
-# 6. Ewaluacja (Query z Okluzją) - ZMODYFIKOWANA
+# 6. Ewaluacja
 # ---------------------------
-def run_evaluation(model, identity_to_folders, image_pairs):
-    print("\n--- KROK 2: Ewaluacja (Zdjęcia z Okluzją) ---")
+def run_evaluation(rec_model, identity_to_folders, image_pairs):
+    print("\n--- KROK 2: Ewaluacja Buffalo_L (Zdjęcia z Okluzją) ---")
     
-    # Ładowanie FAISS
-    try:
-        index = faiss.read_index(FAISS_INDEX_FILE)
-        with open(FAISS_MAPPING_FILE, 'r') as f:
-            idx_map = json.load(f)
-    except Exception as e:
-        print(f"Nie znaleziono plików FAISS. Uruchom budowanie galerii. Błąd: {e}")
-        return
+    index = faiss.read_index(FAISS_INDEX_FILE)
+    with open(FAISS_MAPPING_FILE, 'r') as f:
+        idx_map = json.load(f)
         
     os.makedirs(OUTPUT_OCCLUSION_DIR, exist_ok=True)
     
-    csv_file = open(RESULTS_CSV, 'w', newline='', encoding='utf-8')
+    csv_file = open(RESULTS_CSV, 'w', newline='')
     writer = csv.writer(csv_file)
-    # ZAKTUALIZOWANY NAGŁÓWEK CSV
-    writer.writerow(["query_id", "top1_id", "top1_similarity", "top2_id", "top2_similarity", "top3_id", "top3_similarity", "is_correct_top1"])
+    writer.writerow(["query_id", "pred_id", "similarity", "correct"])
     
     correct = 0
     total = 0
     
     for identity_id in tqdm(identity_to_folders.keys(), desc="Testowanie"):
         folders = sorted(list(identity_to_folders[identity_id]))
-        
-        # DRUGA POŁOWA folderów to zestaw testowy (Query)
         split_point = max(1, len(folders) // 2)
         query_folders = folders[split_point:]
         
@@ -292,7 +258,6 @@ def run_evaluation(model, identity_to_folders, image_pairs):
                 img = cv2.imread(item['jpg'])
                 if img is None: continue
                 
-                # Wczytaj metadane
                 landmarks = None
                 bbox = None
                 if os.path.exists(item['json']):
@@ -307,78 +272,55 @@ def run_evaluation(model, identity_to_folders, image_pairs):
                     # 1. Nałóż okluzję
                     img_occ = apply_occlusion(img, landmarks, bbox)
                     
-                    # 2. Zapisz próbkę (dla weryfikacji wizualnej)
-                    if random.random() < 0.05: # Zapisz 5% zdjęć
+                    # 2. Zapisz próbkę
+                    if random.random() < 0.05:
                         fname = os.path.basename(item['jpg'])
                         cv2.imwrite(os.path.join(OUTPUT_OCCLUSION_DIR, f"occ_{fname}"), img_occ)
                     
-                    # 3. Zrób embedding
-                    emb = image_to_embedding(model, img_occ, bbox)
+                    # 3. Zrób embedding (InsightFace)
+                    emb = image_to_embedding(rec_model, img_occ, bbox)
                     
                     if emb is not None:
-                        # 4. Szukaj w FAISS (Szukamy 3 sąsiadów)
+                        # 4. Szukaj w FAISS
                         q_vec = np.expand_dims(emb, axis=0)
+                        dists, idxs = index.search(q_vec, 1)
                         
-                        # Pobierz 3 najlepsze wyniki
-                        # Zabezpieczenie: jeśli w bazie jest mniej niż 3 osoby, szukamy k=liczba_osób
-                        k_neighbors = min(3, index.ntotal)
-                        dists, idxs = index.search(q_vec, k_neighbors)
+                        pred_idx = str(idxs[0][0])
+                        pred_id = idx_map.get(pred_idx, "Unknown")
+                        score = dists[0][0]
                         
-                        # Top 1
-                        top1_idx = str(idxs[0][0])
-                        top1_id = idx_map.get(top1_idx, "Unknown")
-                        top1_sim = dists[0][0]
-                        
-                        # Top 2 (jeśli istnieje)
-                        top2_id = "N/A"
-                        top2_sim = 0.0
-                        if k_neighbors >= 2:
-                            top2_idx = str(idxs[0][1])
-                            top2_id = idx_map.get(top2_idx, "Unknown")
-                            top2_sim = dists[0][1]
-                            
-                        # Top 3 (jeśli istnieje)
-                        top3_id = "N/A"
-                        top3_sim = 0.0
-                        if k_neighbors >= 3:
-                            top3_idx = str(idxs[0][2])
-                            top3_id = idx_map.get(top3_idx, "Unknown")
-                            top3_sim = dists[0][2]
-                        
-                        # Weryfikacja
-                        is_ok = (top1_id == identity_id)
+                        is_ok = (pred_id == identity_id)
                         if is_ok: correct += 1
                         total += 1
                         
-                        # Zapis do CSV
-                        writer.writerow([identity_id, top1_id, f"{top1_sim:.4f}", top2_id, f"{top2_sim:.4f}", top3_id, f"{top3_sim:.4f}", is_ok])
+                        writer.writerow([identity_id, pred_id, f"{score:.4f}", is_ok])
 
     csv_file.close()
     
     if total > 0:
         acc = (correct / total) * 100
-        print(f"\n WYNIKI KOŃCOWE:")
+        print(f"\nWYNIKI KOŃCOWE (Buffalo_L Original):")
         print(f"   Przetworzono zapytań: {total}")
         print(f"   Poprawne rozpoznania: {correct}")
         print(f"   ACCURACY (Top-1):     {acc:.2f}%")
         print(f"   Szczegóły w pliku:    {RESULTS_CSV}")
     else:
-        print(" Nie przetworzono żadnych zdjęć.")
+        print("Nie przetworzono żadnych zdjęć.")
 
 # ---------------------------
 # MAIN
 # ---------------------------
 def main():
-    # 1. Model
-    model = initialize_model()
+    # 1. Model z biblioteki
+    model = initialize_insightface()
     
     # 2. Pliki
     id_map, img_pairs = discover_file_structure(TEST_DIR)
     if not id_map: return
     
-    # 3. Galeria (Indeksowanie czystych twarzy)
+    # 3. Galeria
     if build_gallery(model, id_map, img_pairs):
-        # 4. Test (Szukanie twarzy z okluzją)
+        # 4. Test
         run_evaluation(model, id_map, img_pairs)
 
 if __name__ == "__main__":

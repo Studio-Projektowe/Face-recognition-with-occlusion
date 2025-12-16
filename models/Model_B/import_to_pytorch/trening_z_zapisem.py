@@ -13,10 +13,10 @@ import random
 from tqdm import tqdm
 
 # Importujemy Twój loader i architekturę
-from models.Model_B.modification.load_and_test import load_clean_model, DEVICE
+from load_and_test import load_clean_model, DEVICE
 
 # --- KONFIGURACJA ---
-BASE_DIR = '../../../scripts/casia_dataset/webface_112x112'
+BASE_DIR = '../../../../webface_112x112'
 TRAIN_DIR = os.path.join(BASE_DIR, 'train')
 VAL_DIR = os.path.join(BASE_DIR, 'val')
 DEBUG_DIR = 'training_photos'  # Folder na podgląd zdjęć
