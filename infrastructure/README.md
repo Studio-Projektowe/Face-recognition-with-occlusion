@@ -178,3 +178,42 @@ script and propably again set an _image url_ atribute (refresh it i.e. in GCP UX
 > | - script.py
 > ```
 > ! Change name of _image_folder_ and env variables in `"google_cloud_run_v2_job" "casia_download"` and `build_run/` scripts.
+
+> [!IMPORTANT]
+> So recently I have come back to this project and when I wanted to create a new VM instance I was getting this error constantly:
+> google_workbench_instance.notebook_instance_copy: Creating...
+>
+> ╷
+> │ Error: Error waiting to create Instance: Error waiting for Creating Instance: error while retrieving operation: googleapi: Error 403: Your application is authenticating by using local Application Default Credentials. The notebooks.googleapis.com API requires a quota project, which is not set by default. To learn how to set your quota project, see https://cloud.google.com/docs/authentication/adc-troubleshooting/user-creds .
+> │ Details:
+> │ [
+> │   {
+> │     "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+> │     "domain": "googleapis.com",
+> │     "metadata": {
+> │       "consumer": "projects/764086051850",
+> │       "service": "notebooks.googleapis.com"
+> │     },
+> │     "reason": "SERVICE_DISABLED"
+> │   },
+> │   {
+> │     "@type": "type.googleapis.com/google.rpc.LocalizedMessage",
+> │     "locale": "en-US",
+> │     "message": "Your application is authenticating by using local Application Default Credentials. The notebooks.googleapis.com API requires a quota project, which is not set by default. To learn how to set your quota project, see https://cloud.google.com/docs/authentication/adc-troubleshooting/user-creds ."       
+> │   }
+> │ ]
+> │
+> │   with google_workbench_instance.notebook_instance_copy,
+> │   on vm_copy.tf line 1, in resource "google_workbench_instance" "notebook_instance_copy":
+> │    1: resource "google_workbench_instance" "notebook_instance_copy" {
+> │
+> ╵
+> 
+> THE FIX:
+>
+> Add this two lines in the provider block in our terraform script:
+>
+> billing_project = var.PROJECT_ID
+> user_project_override = true
+> 
+> And well done!

@@ -8,6 +8,8 @@ terraform {
 provider "google" {
   project = var.PROJECT_ID
   region  = var.REGION
+  billing_project = var.PROJECT_ID
+  user_project_override = true
 }
 
 resource "google_storage_bucket" "terraform_state_bucket" {
@@ -75,7 +77,8 @@ resource "google_project_service" "apis" {
     "run.googleapis.com",
     "artifactregistry.googleapis.com",
     "secretmanager.googleapis.com",
-    "cloudbuild.googleapis.com"
+    "cloudbuild.googleapis.com",
+    "notebooks.googleapis.com"
   ])
   project            = var.PROJECT_ID
   service            = each.key
