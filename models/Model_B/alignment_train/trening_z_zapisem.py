@@ -17,7 +17,7 @@ from load_and_test import load_clean_model, DEVICE
 import face_align
 
 # --- KONFIGURACJA ---
-BASE_DIR = 'webface_112x112'
+BASE_DIR = '../../../../webface_112x112'
 TRAIN_DIR = os.path.join(BASE_DIR, 'train')
 VAL_DIR = os.path.join(BASE_DIR, 'val')
 DEBUG_DIR = 'training_photos'
@@ -62,7 +62,7 @@ def freeze_layers(model):
 
 # --- 2. KLASA EARLY STOPPING ---
 class EarlyStopping:
-    def __init__(self, patience=5, min_delta=0, path='best_model_se_occlusion.pth'):
+    def __init__(self, patience=5, min_delta=0, path='best_model_align_occlusion.pth'):
         self.patience = patience
         self.min_delta = min_delta
         self.path = path
