@@ -5,6 +5,7 @@
 *.tfvars
 *.tfvars.json
 
+*.ttx
 .env
 venv
 .venv
@@ -21,7 +22,7 @@ example.jpg
 **/nohup.out
 **/best_model_res50_occlusion.pth
 =======
-
+models/Model_B/CBAM/evaluation_photos_cbam/
 models/Model_B/modification/eval_res50.txt
 models/Model_B/modification/gallery_res50.index
 models/Model_B/modification/gallery_res50_map.json

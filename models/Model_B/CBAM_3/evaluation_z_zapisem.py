@@ -13,20 +13,20 @@ from tqdm import tqdm
 import torch
 
 # Importujemy architekturę (upewnij się, że to wersja z CBAM!)
-from backbone_iresnet import iresnet50
+from backbone import iresnet50
 
 # --- KONFIGURACJA ---
 BASE_DIR = '../../../../webface_112x112'
 TEST_DIR = os.path.join(BASE_DIR, 'test') # Ewaluacja na zbiorze testowym
 
 # Ścieżka do modelu CBAM (wynik ostatniego treningu)
-MODEL_PATH = 'best_model_res50_occlusion.pth'
+MODEL_PATH = 'best_model_cbam_occlusion_v2.pth'
 
 # Pliki wyjściowe
-FAISS_INDEX_FILE = "gallery_res50_3.index"
-FAISS_MAPPING_FILE = "gallery_res50_map_3.json"
-RESULTS_CSV = "results_res50_occlusion_top3.csv"
-OUTPUT_OCCLUSION_DIR = "evaluation_photos_res50"
+FAISS_INDEX_FILE = "gallery_cbam_3.index"
+FAISS_MAPPING_FILE = "gallery_cbam_map_3.json"
+RESULTS_CSV = "results_cbam_occlusion_top3.csv"
+OUTPUT_OCCLUSION_DIR = "evaluation_photos_cbam"
 
 OCCLUSION_SIZE = 20 # Dopasowane do treningu
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
