@@ -19,7 +19,7 @@ import face_align
 # --- KONFIGURACJA ---
 BASE_DIR = '../../../../webface_112x112'
 TRAIN_DIR = os.path.join(BASE_DIR, 'train')
-VAL_DIR = os.path.join(BASE_DIR, 'val') # Bierzemy też ten folder!
+VAL_DIR = os.path.join(BASE_DIR, 'val')
 DEBUG_DIR = 'training_photos'
 
 BATCH_SIZE = 32
@@ -30,12 +30,12 @@ OCCLUSION_HEIGHT = 20
 NUM_WORKERS = 4
 PATIENCE = 5
 
-# Learning Rates (Różnicowe)
-LR_BACKBONE = 1e-5     # Bardzo ostrożnie z Backbone
-LR_HEAD = 0.01         # Normalnie z Głowicą
-AUX_LOSS_WEIGHT = 0.01 # Mniejszy wpływ maski
+# --- LEARNING RATES (POWRÓT DO MOCY) ---
+LR_BACKBONE = 5e-4   # 0.0005 (Kompromis między szybkością a stabilnością)
+LR_HEAD = 0.01       # ArcFace wymaga dużego LR na starcie
+AUX_LOSS_WEIGHT = 0.01
 
-# --- 1. ZAMRAŻANIE ---
+# --- 1. ZAMRAŻANIE WARSTW ---
 def freeze_layers(model):
     print("\n❄️ Konfiguracja zamrażania warstw...")
     frozen = 0
@@ -43,6 +43,7 @@ def freeze_layers(model):
     for name, param in model.named_parameters():
         param.requires_grad = False 
         
+        # Odmrażamy tylko kluczowe bloki
         if (
             'se' in name or       
             'layer3' in name or   
@@ -88,7 +89,7 @@ class EarlyStopping:
         print(f'   ✅ Val Loss spadł ({self.best_loss:.6f} --> {val_loss:.6f}). Zapis modelu...')
         torch.save(model.backbone.state_dict(), self.path)
 
-# --- 3. MODELE ---
+# --- 3. MODEL ARCFACE (Z FIXEM NA NaN) ---
 class ArcMarginProduct(nn.Module):
     def __init__(self, in_features, out_features, s=30.0, m=0.50, easy_margin=False):
         super(ArcMarginProduct, self).__init__()
@@ -106,15 +107,13 @@ class ArcMarginProduct(nn.Module):
         self.mm = np.sin(np.pi - m) * m
 
     def forward(self, input, label):
-        # 1. Normalizacja wektorów i wag
+        # Normalizacja wektorów i wag
         cosine = torch.nn.functional.linear(
             torch.nn.functional.normalize(input), 
             torch.nn.functional.normalize(self.weight)
         )
         
         # --- FIX: ZABEZPIECZENIE PRZED NaN ---
-        # Przycinamy wartość, by była minimalnie mniejsza od 1.0 i większa od -1.0
-        # Epsilon 1e-7 wystarczy, by sqrt nie wywalił błędu.
         eps = 1e-7
         cosine = torch.clamp(cosine, -1.0 + eps, 1.0 - eps)
         # -------------------------------------
@@ -137,7 +136,8 @@ class FaceModelWithAux(nn.Module):
     def __init__(self, backbone, num_classes):
         super(FaceModelWithAux, self).__init__()
         self.backbone = backbone
-        self.arcface = ArcMarginProduct(512, num_classes)
+        # KLUCZOWE: easy_margin=True dla stabilnego startu
+        self.arcface = ArcMarginProduct(512, num_classes, easy_margin=True)
         self.aux_head = nn.Sequential(
             nn.Linear(512, 256),
             nn.ReLU(),
@@ -148,41 +148,35 @@ class FaceModelWithAux(nn.Module):
     def forward(self, x, labels=None):
         features = self.backbone(x)
         features_flat = features.view(features.size(0), -1)
+        
         mask_pred = self.aux_head(features_flat)
+        
         if labels is not None:
             arcface_out = self.arcface(features_flat, labels)
             return arcface_out, mask_pred
         return features_flat, mask_pred
 
-# --- 4. DATASET (ZMODYFIKOWANY: Obsługa wielu folderów) ---
+# --- 4. DATASET (POPRAWIONE INDEKSOWANIE [-3]) ---
 class OcclusionFaceDataset(Dataset):
     def __init__(self, root_dirs, transform=None):
-        """
-        root_dirs: LISTA ścieżek, np. ['path/train', 'path/val']
-        """
         self.root_dirs = root_dirs
         self.transform = transform
-        
         self.image_paths = []
-        print(f"🔄 Skanowanie folderów: {root_dirs}...")
         
-        # Skanujemy każdy folder z listy i łączymy wyniki
+        print(f"🔄 Skanowanie folderów: {root_dirs}...")
         for d in root_dirs:
             if os.path.exists(d):
+                # Szukamy głęboko: id/sesja/zdjecie.jpg
                 files = glob.glob(os.path.join(d, "*", "*", "*.jpg"))
                 self.image_paths.extend(files)
             else:
                 print(f"⚠️ Uwaga: Folder {d} nie istnieje!")
 
-        if not self.image_paths:
-            print("❌ BŁĄD: Nie znaleziono żadnych zdjęć!")
-        
-        # Tworzymy klasy na podstawie nazwy folderu tożsamości
-        # Struktura: root/ID_FOLDER/zdjecie.jpg -> wyciągamy ID_FOLDER
+        # Wyciąganie etykiet z indeksu [-3] (folder ID)
         self.classes = sorted(list(set([path.split(os.sep)[-3] for path in self.image_paths])))
         self.class_to_idx = {cls_name: i for i, cls_name in enumerate(self.classes)}
         
-        print(f"✅ Znaleziono łącznie {len(self.image_paths)} zdjęć w {len(self.classes)} unikalnych tożsamościach.")
+        print(f"✅ Znaleziono łącznie {len(self.image_paths)} zdjęć w {len(self.classes)} tożsamościach.")
 
     def __len__(self): return len(self.image_paths)
 
@@ -193,7 +187,8 @@ class OcclusionFaceDataset(Dataset):
                 landmarks['mouth_right'], landmarks['mouth_left']
             ], dtype=np.float32)
             return face_align.norm_crop(img, landmark=kps, image_size=112)
-        except: return cv2.resize(img, (112, 112))
+        except: 
+            return cv2.resize(img, (112, 112))
 
     def apply_random_occlusion(self, img):
         h, w, _ = img.shape
@@ -208,34 +203,46 @@ class OcclusionFaceDataset(Dataset):
 
     def __getitem__(self, idx):
         img_path = self.image_paths[idx]
-        # Wyciągamy nazwę klasy (folderu rodzica)
+        
+        # Wyciągamy ID (folder [-3])
         class_name = img_path.split(os.sep)[-3]
         label = self.class_to_idx.get(class_name, -1)
         
         img = cv2.imread(img_path)
         if img is None: img = np.zeros((112, 112, 3), dtype=np.uint8)
         
+        # ALIGNMENT: Sprawdzamy czy jest JSON z landmarkami
         json_path = img_path.replace('.jpg', '.json')
-        final_img = cv2.resize(img, (112, 112))
+        final_img = cv2.resize(img, (112, 112)) # Domyślny resize
         
         if os.path.exists(json_path):
             try:
                 with open(json_path, 'r') as f:
                     data = json.load(f)
+                    # Używamy face_align do wyprostowania twarzy
                     final_img = self.align_face(img, data.get('landmarks', data))
             except: pass
 
+        # OKLUZJA
         mask_target = np.zeros((7, 7), dtype=np.float32)
         if random.random() < OCCLUSION_PROB:
             final_img, full_mask = self.apply_random_occlusion(final_img)
             mask_target = cv2.resize(full_mask, (7, 7), interpolation=cv2.INTER_NEAREST)
 
-        img_tensor = self.transform(cv2.cvtColor(final_img, cv2.COLOR_BGR2RGB))
+        # TRANSFORMACJA
+        img_rgb = cv2.cvtColor(final_img, cv2.COLOR_BGR2RGB)
+        if self.transform:
+            img_tensor = self.transform(img_rgb)
+        else:
+            img_tensor = transforms.ToTensor()(img_rgb)
+            
         return img_tensor, label, torch.from_numpy(mask_target).flatten()
 
 # --- 5. MAIN ---
 def main():
     os.makedirs(DEBUG_DIR, exist_ok=True)
+    
+    # Ładowanie modelu i zamrażanie
     backbone = load_clean_model()
     freeze_layers(backbone)
     
@@ -244,12 +251,10 @@ def main():
         transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
     ])
     
-    # 1. WCZYTUJEMY WSZYSTKO JAKO JEDEN DATASET
-    # Podajemy listę [TRAIN_DIR, VAL_DIR]
+    # 1. Dataset (Jeden duży, potem dzielony)
     full_dataset = OcclusionFaceDataset(root_dirs=[TRAIN_DIR, VAL_DIR], transform=transform)
     
-    # 2. DZIELIMY LOSOWO (90% Train, 10% Val)
-    # To jest klucz! Teraz w obu zbiorach są ci sami ludzie, ale inne zdjęcia.
+    # Podział 90/10 losowo (gwarantuje, że val ma te same ID co train)
     train_size = int(0.9 * len(full_dataset))
     val_size = len(full_dataset) - train_size
     
@@ -261,21 +266,19 @@ def main():
     
     model = FaceModelWithAux(backbone, len(full_dataset.classes)).to(DEVICE)
     
-    # Optymalizator
+    # 2. OPTIMIZER Z GRUPAMI (Klucz do sukcesu)
     backbone_params = [p for n, p in model.named_parameters() if 'backbone' in n and p.requires_grad]
     head_params = [p for n, p in model.named_parameters() if 'backbone' not in n and p.requires_grad]
             
     optimizer = optim.SGD([
-        {'params': backbone_params, 'lr': LR_BACKBONE},
-        {'params': head_params, 'lr': LR_HEAD}
+        {'params': backbone_params, 'lr': LR_BACKBONE}, # 5e-4
+        {'params': head_params, 'lr': LR_HEAD}          # 0.01
     ], momentum=0.9, weight_decay=5e-4)
     
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=2)
     early_stopping = EarlyStopping(patience=PATIENCE)
     criterion_cls = nn.CrossEntropyLoss()
     criterion_aux = nn.MSELoss()
-    
-    history = {'train_loss': [], 'val_loss': []}
     
     print(f"\n🚀 START: Backbone LR={LR_BACKBONE}, Head LR={LR_HEAD}, Batch={BATCH_SIZE}")
 
@@ -288,16 +291,17 @@ def main():
         for i, (img, lbl, msk) in enumerate(loop):
             img, lbl, msk = img.to(DEVICE), lbl.to(DEVICE), msk.to(DEVICE)
             
-            # Zapisz próbkę tylko dla pierwszego batcha
+            # Podgląd zdjęć
             if i == 0: 
                 vutils.save_image(img[:20]*0.5+0.5, f"{DEBUG_DIR}/ep{epoch}.jpg", nrow=5)
             
             logits, m_pred = model(img, lbl)
             loss = criterion_cls(logits, lbl) + AUX_LOSS_WEIGHT * criterion_aux(m_pred, msk)
-
+            
+            # NaN Check
             if torch.isnan(loss):
-                print(f"❌ Wykryto NaN w epoce {epoch}, krok {i}! Pomijam ten krok.")
-                optimizer.zero_grad() # Czyścimy gradienty
+                print(f"❌ Wykryto NaN w epoce {epoch}, krok {i}! Pomijam krok.")
+                optimizer.zero_grad()
                 continue
             
             # Gradient Accumulation
@@ -305,7 +309,7 @@ def main():
             loss.backward()
             
             if (i + 1) % GRAD_ACCUM_STEPS == 0:
-                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 5.0)
                 optimizer.step()
                 optimizer.zero_grad()
             
@@ -313,28 +317,33 @@ def main():
             train_loss += current_loss
             loop.set_postfix({'loss': current_loss})
             
-        # Walidacja
+        # --- Walidacja ---
         model.eval()
-        val_loss = 0.0
+        val_total_loss = 0.0
+        
         with torch.no_grad():
             for img, lbl, msk in val_loader:
                 img, lbl, msk = img.to(DEVICE), lbl.to(DEVICE), msk.to(DEVICE)
+                
                 logits, m_pred = model(img, lbl)
-                v_loss = criterion_cls(logits, lbl) + AUX_LOSS_WEIGHT * criterion_aux(m_pred, msk)
-                val_loss += v_loss.item()
+                
+                # WAŻNE: Mierzymy loss ArcFace + Aux
+                v_loss_cls = criterion_cls(logits, lbl)
+                v_loss_aux = criterion_aux(m_pred, msk)
+                
+                val_total_loss += (v_loss_cls + AUX_LOSS_WEIGHT * v_loss_aux).item()
                 
         avg_train = train_loss / len(train_loader)
-        avg_val = val_loss / len(val_loader)
+        avg_val = val_total_loss / len(val_loader)
         
         print(f"📊 Wynik: Train: {avg_train:.4f} | Val: {avg_val:.4f}")
         
-        history['train_loss'].append(avg_train)
-        history['val_loss'].append(avg_val)
-        with open('history.json', 'w') as f: json.dump(history, f)
-        
         scheduler.step(avg_val)
         early_stopping(avg_val, model)
-        if early_stopping.early_stop: break
+        
+        if early_stopping.early_stop:
+            print("🛑 Early Stopping zadziałał.")
+            break
 
     print("✅ Koniec.")
 
