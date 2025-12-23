@@ -1,40 +1,35 @@
 locals {
-  zone = "northamerica-northeast2-a"
-  
-  vm_name = "vgg-rescue-toronto"
-  
-  machine_type = "g2-standard-4"
+  zone_3 = "us-east1-c"
 
-  snapshot_boot_name = "face-rec-boot"
-  snapshot_data_name = "face-rec-data-workspace"
+  vm_name_3 = "vgg-rescue-3-toronto"
 }
 
-resource "google_compute_disk" "boot_disk" {
-  name  = "${local.vm_name}-boot"
+resource "google_compute_disk" "boot_disk_3" {
+  name  = "${local.vm_name_3}-boot"
   type  = "pd-ssd"
-  zone  = local.zone
-  snapshot = local.snapshot_boot_name
+  zone  = local.zone_3
+  snapshot = local.snapshot_boot_name_2
 }
 
-resource "google_compute_disk" "data_disk" {
-  name  = "${local.vm_name}-data"
+resource "google_compute_disk" "data_disk_3" {
+  name  = "${local.vm_name_3}-data"
   type  = "pd-ssd"
-  zone  = local.zone
-  snapshot = local.snapshot_data_name
+  zone  = local.zone_3
+  snapshot = local.snapshot_data_name_2
 }
 
-resource "google_compute_instance" "rescue_vm" {
-  name         = local.vm_name
+resource "google_compute_instance" "rescue_vm_3" {
+  name         = local.vm_name_3
   machine_type = local.machine_type
-  zone         = local.zone
+  zone         = local.zone_3
 
   boot_disk {
-    source      = google_compute_disk.boot_disk.id
+    source      = google_compute_disk.boot_disk_3.id
     auto_delete = false 
   }
 
   attached_disk {
-    source      = google_compute_disk.data_disk.id
+    source      = google_compute_disk.data_disk_3.id
     device_name = "data_disk"
   }
 
@@ -55,8 +50,7 @@ resource "google_compute_instance" "rescue_vm" {
     on_host_maintenance = "TERMINATE"
     automatic_restart   = true
   }
-
-  lifecycle {
+lifecycle {
     ignore_changes = [
       metadata["ssh-keys"], 
       desired_status 
@@ -64,9 +58,10 @@ resource "google_compute_instance" "rescue_vm" {
   }
 }
 
+
 # resource "google_workbench_instance" "notebook_instance_copy" {
 #   name     = "vgg-model-${random_id.suffix.hex}-copy"
-#   location = "northamerica-northeast2-a"
+#   location = "us-east1-c"
 #   project  = var.PROJECT_ID
 
 #   gce_setup {

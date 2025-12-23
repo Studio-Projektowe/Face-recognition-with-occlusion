@@ -3,6 +3,8 @@ import torch.nn as nn
 
 __all__ = ['iresnet50']
 
+BN_EPS = 0.000001
+
 def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
     """3x3 convolution with padding"""
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
