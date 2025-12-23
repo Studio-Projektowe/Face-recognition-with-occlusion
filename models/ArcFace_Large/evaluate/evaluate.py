@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 import os
 import sys
 import glob
@@ -13,48 +11,34 @@ from tqdm import tqdm
 import insightface
 from insightface.app import FaceAnalysis
 
-# --- KONFIGURACJA ---
-BASE_DIR = '../../../../webface_112x112' # Twoja ścieżka
+BASE_DIR = '../../../../webface_112x112' 
 TEST_DIR = os.path.join(BASE_DIR, 'test') 
 
-# Pliki wyjściowe
 FAISS_INDEX_FILE = "gallery_buffalo.index"
 FAISS_MAPPING_FILE = "gallery_buffalo_map.json"
 RESULTS_CSV = "results_buffalo_occlusion.csv"
 OUTPUT_OCCLUSION_DIR = "evaluation_photos_buffalo"
 
 OCCLUSION_SIZE = 20
-# Wybór providera dla ONNX Runtime
 PROVIDERS = ['CUDAExecutionProvider', 'CPUExecutionProvider']
 
-# ---------------------------
-# 1. Inicjalizacja Modelu (InsightFace)
-# ---------------------------
 def initialize_insightface():
-    print("🚀 Ładowanie oryginalnego modelu InsightFace (buffalo_l)...")
+    print("Ładowanie oryginalnego modelu InsightFace (buffalo_l)...")
     
-    # Inicjalizujemy całą aplikację, ale interesuje nas tylko Recognition
     app = FaceAnalysis(name='buffalo_l', providers=PROVIDERS)
     
-    # prepare z det_size=(640,640) jest standardem, choć tu użyjemy tylko rec
     app.prepare(ctx_id=0, det_size=(640, 640))
     
-    # Wyciągamy konkretny model do rozpoznawania (ArcFace ResNet50)
-    # W pakiecie buffalo_l kluczem jest zazwyczaj 'recognition'
     rec_model = app.models.get('recognition')
     
     if rec_model is None:
-        print("❌ Błąd: Nie znaleziono modelu 'recognition' w pakiecie buffalo_l.")
+        print("Błąd: Nie znaleziono modelu 'recognition' w pakiecie buffalo_l.")
         sys.exit(1)
         
-    print(f"✅ Załadowano model: {rec_model.input_shape} -> {rec_model.output_shape}")
+    print(f"Załadowano model: {rec_model.input_shape} -> {rec_model.output_shape}")
     return rec_model
 
-# ---------------------------
-# 2. Funkcje Przetwarzania Obrazu
-# ---------------------------
 def preprocess_face_from_bbox(img, bbox, output_size=112, pad_ratio=0.2):
-    # Ta funkcja pozostaje bez zmian, aby wyciąć twarz tak samo jak w Twoim treningu
     h, w = img.shape[:2]
     x1, y1, x2, y2 = [int(v) for v in bbox]
     
@@ -76,27 +60,22 @@ def preprocess_face_from_bbox(img, bbox, output_size=112, pad_ratio=0.2):
 
 def image_to_embedding(rec_model, img_bgr, bbox=None):
     try:
-        # 1. KROK: Wycięcie i skalowanie do 112x112
         if bbox is not None:
             face = preprocess_face_from_bbox(img_bgr, bbox, output_size=112)
         else:
             face = cv2.resize(img_bgr, (112, 112))
 
-        # 2. KROK: Inferencja InsightFace
         # Biblioteka InsightFace (handler ONNX) oczekuje czystego obrazu BGR (numpy).
         # Sama robi normalizację (div 127.5) i transpozycję (HWC->CHW).
         # Metoda get_feat zwraca od razu embedding.
         
         emb = rec_model.get_feat(face)
         
-        # Jeśli z jakiegoś powodu zwróci listę (zależy od wersji), spłaszczamy
         if isinstance(emb, list):
             emb = emb[0]
             
         emb = emb.flatten()
         
-        # 3. KROK: Normalizacja L2 (Ważne dla Cosine Similarity)
-        # Oryginalny model zazwyczaj zwraca już znormalizowane, ale dla pewności:
         norm = np.linalg.norm(emb)
         if norm > 0:
             emb /= norm
@@ -107,9 +86,6 @@ def image_to_embedding(rec_model, img_bgr, bbox=None):
         print(f"Warning: Błąd embeddingu: {e}")
         return None
 
-# ---------------------------
-# 3. Odkrywanie Plików (Bez zmian)
-# ---------------------------
 def discover_file_structure(local_root):
     print(f"Skanowanie folderu: {local_root}...")
     search_pattern = os.path.join(local_root, "*", "*", "*.jpg")
@@ -143,9 +119,6 @@ def discover_file_structure(local_root):
     print(f"Znaleziono {len(all_files)} zdjęć w {len(identity_to_folders)} tożsamościach.")
     return identity_to_folders, image_pairs
 
-# ---------------------------
-# 4. Budowanie Galerii (FAISS)
-# ---------------------------
 def build_gallery(rec_model, identity_to_folders, image_pairs):
     print("\n--- KROK 1: Budowanie Galerii FAISS (Buffalo_L) ---")
     
@@ -203,9 +176,6 @@ def build_gallery(rec_model, identity_to_folders, image_pairs):
     print(f"Zbudowano galerię dla {idx_counter} osób.")
     return True
 
-# ---------------------------
-# 5. Funkcja Nakładania Okluzji (Bez zmian)
-# ---------------------------
 def apply_occlusion(image, landmarks_dict, bbox):
     occ_img = image.copy()
     try:
@@ -228,9 +198,6 @@ def apply_occlusion(image, landmarks_dict, bbox):
         return image
     return occ_img
 
-# ---------------------------
-# 6. Ewaluacja
-# ---------------------------
 def run_evaluation(rec_model, identity_to_folders, image_pairs):
     print("\n--- KROK 2: Ewaluacja Buffalo_L (Zdjęcia z Okluzją) ---")
     
@@ -269,19 +236,15 @@ def run_evaluation(rec_model, identity_to_folders, image_pairs):
                     except: pass
                 
                 if landmarks and bbox:
-                    # 1. Nałóż okluzję
                     img_occ = apply_occlusion(img, landmarks, bbox)
                     
-                    # 2. Zapisz próbkę
                     if random.random() < 0.05:
                         fname = os.path.basename(item['jpg'])
                         cv2.imwrite(os.path.join(OUTPUT_OCCLUSION_DIR, f"occ_{fname}"), img_occ)
                     
-                    # 3. Zrób embedding (InsightFace)
                     emb = image_to_embedding(rec_model, img_occ, bbox)
                     
                     if emb is not None:
-                        # 4. Szukaj w FAISS
                         q_vec = np.expand_dims(emb, axis=0)
                         dists, idxs = index.search(q_vec, 1)
                         
@@ -307,20 +270,13 @@ def run_evaluation(rec_model, identity_to_folders, image_pairs):
     else:
         print("Nie przetworzono żadnych zdjęć.")
 
-# ---------------------------
-# MAIN
-# ---------------------------
 def main():
-    # 1. Model z biblioteki
     model = initialize_insightface()
     
-    # 2. Pliki
     id_map, img_pairs = discover_file_structure(TEST_DIR)
     if not id_map: return
     
-    # 3. Galeria
     if build_gallery(model, id_map, img_pairs):
-        # 4. Test
         run_evaluation(model, id_map, img_pairs)
 
 if __name__ == "__main__":

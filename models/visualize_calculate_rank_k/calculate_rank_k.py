@@ -1,6 +1,7 @@
 import csv
 import sys
-from config import RESULTS_CSV # Importuje nazwę pliku z config
+
+RESULTS_CSV = "../../scores/ArcFace_Large/occlusion_results.csv"
 
 def calculate_rank_k_accuracy(csv_file):
     print(f"Wczytywanie wyników z: {csv_file}")
@@ -14,7 +15,6 @@ def calculate_rank_k_accuracy(csv_file):
             reader = csv.DictReader(f)
             
             for row in reader:
-                # Oczyszczenie (usunięcie spacji, jeśli są)
                 query_id = row['query_id'].strip()
                 top1_id = row['top1_id'].strip()
                 top2_id = row['top2_id'].strip()
@@ -22,11 +22,9 @@ def calculate_rank_k_accuracy(csv_file):
                 
                 total_queries += 1
                 
-                # Sprawdzenie Rank-1
                 if query_id == top1_id:
                     rank1_correct += 1
                 
-                # Sprawdzenie Rank-3 (czy poprawny ID jest w Top 3)
                 if query_id in (top1_id, top2_id, top3_id):
                     rank3_correct += 1
                     
@@ -42,7 +40,6 @@ def calculate_rank_k_accuracy(csv_file):
         print("BŁĄD: Plik CSV jest pusty. Nie ma danych do analizy.")
         return
 
-    # Obliczenie i wydrukowanie wyników
     rank1_acc = (rank1_correct / total_queries) * 100
     rank3_acc = (rank3_correct / total_queries) * 100
     

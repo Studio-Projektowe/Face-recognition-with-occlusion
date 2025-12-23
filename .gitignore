@@ -18,10 +18,8 @@ occlusion_photos
 webface_112x112
 example.jpg
 **/w600k_r50_from_onnx.pth
-<<<<<<< HEAD
 **/nohup.out
 **/best_model_res50_occlusion.pth
-=======
 models/Model_B/CBAM/evaluation_photos_cbam/
 models/Model_B/modification/eval_res50.txt
 models/Model_B/modification/gallery_res50.index
@@ -32,4 +30,3 @@ models/evaluate/
 models/evaluate_s/
 models/evaluate_vgg/
 scripts/download_and_preprocess_dataset/nohup.out
->>>>>>> 0dc6862 (Komit)

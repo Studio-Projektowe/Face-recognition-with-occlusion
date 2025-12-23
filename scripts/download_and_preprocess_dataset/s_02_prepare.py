@@ -12,13 +12,11 @@ def run():
         print(f"BŁĄD: Folder źródłowy '{BASE_DATA_DIR}' nie istnieje. Uruchom najpierw 01_download.py.")
         sys.exit(1)
 
-    # Sprawdzenie, czy podział już został wykonany
     train_dir = os.path.join(BASE_DATA_DIR, 'train')
     if os.path.exists(train_dir):
         print("Foldery train/val/test już istnieją. Pomijanie etapu przygotowania.")
         return
 
-    # 1. Pobranie listy wszystkich folderów tożsamości
     try:
         identity_folders = [
             f for f in os.listdir(BASE_DATA_DIR) 
@@ -32,22 +30,18 @@ def run():
         print(f"BŁĄD podczas listowania folderów w '{BASE_DATA_DIR}': {e}")
         sys.exit(1)
 
-    # 2. Wymieszanie listy
     random.shuffle(identity_folders)
 
-    # 3. Obliczenie punktów podziału
     total_identities = len(identity_folders)
     train_count = math.floor(total_identities * SPLIT_RATIOS['train'])
     val_count = math.floor(total_identities * SPLIT_RATIOS['val'])
     
-    # test_count to reszta, aby uniknąć błędów zaokrągleń
     train_split = identity_folders[:train_count]
     val_split = identity_folders[train_count : train_count + val_count]
     test_split = identity_folders[train_count + val_count :]
 
     print(f"Podział: {len(train_split)} train, {len(val_split)} val, {len(test_split)} test.")
 
-    # 4. Stworzenie docelowych folderów i przeniesienie
     splits = {
         "train": train_split,
         "val": val_split,

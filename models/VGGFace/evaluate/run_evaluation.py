@@ -8,15 +8,13 @@ import numpy as np
 import cv2
 import faiss
 from tqdm import tqdm
-import threading # Ważne dla bezpieczeństwa GPU
+import threading
 
-# Importy dla VGGFace
 import tensorflow as tf
 from keras_vggface.vggface import VGGFace
 from keras_vggface.utils import preprocess_input
 from mtcnn.mtcnn import MTCNN
 
-# Importy dla wielowątkowości
 from concurrent.futures import ThreadPoolExecutor, as_completed 
 from config import (
     BASE_FOLDER_LOCAL, 
@@ -24,12 +22,10 @@ from config import (
     NUM_WORKERS
 )
 
-# --- 1. INICJALIZACJA MODELU (NOWA) ---
 
 def initialize_services():
     """Ładuje modele VGGFace, MTCNN i tworzy blokadę GPU."""
     
-    # Upewnij się, że TF widzi GPU
     gpus = tf.config.experimental.list_physical_devices('GPU')
     if gpus:
         try:
@@ -60,7 +56,6 @@ def initialize_services():
         print(f"BŁĄD: Nie udało się załadować modelu VGGFace: {e}")
         sys.exit(1)
         
-    # Tworzymy blokadę, aby chronić Keras/GPU przed jednoczesnym dostępem
     gpu_lock = threading.Lock()
     
     print("Inicjalizacja zakończona pomyślnie.")
@@ -81,36 +76,29 @@ def get_embedding(image_bgr, vgg_model, detector, gpu_lock):
         # MTCNN i Keras.predict NIE SĄ bezpieczne dla wątków.
         # Tylko jeden wątek na raz może wykonywać ten blok.
         with gpu_lock:
-            # Krok 1: Detekcja twarzy
             detections = detector.detect_faces(img_rgb)
             
             if not detections:
-                return None # Nie znaleziono twarzy
+                return None
                 
-            # Bierzemy pierwszą, największą twarz
             x, y, w, h = detections[0]['box']
             x1, y1 = max(0, x), max(0, y)
             x2, y2 = min(img_rgb.shape[1], x+w), min(img_rgb.shape[0], y+h)
             
             face = img_rgb[y1:y2, x1:x2]
             
-            # Krok 2: Skalowanie i preprocessing
             face = cv2.resize(face, (224, 224))
-            face = np.expand_dims(face, axis=0) # (1, 224, 224, 3)
+            face = np.expand_dims(face, axis=0)
             face = face.astype('float32') 
-            face = preprocess_input(face, version=2) # Wersja 2 dla RESNET/SENET
+            face = preprocess_input(face, version=2)
             
-            # Krok 3: Ekstrakcja embeddingu
             embedding = vgg_model.predict(face, verbose=0)
-        # --- KONIEC SEKCJI KRYTYCZNEJ ---
             
-        return embedding.flatten() # Zwracamy wektor 1D (2048 wymiarów)
+        return embedding.flatten()
         
     except Exception as e:
         tqdm.write(f"Warning: Błąd podczas pobierania embeddingu (VGGFace): {e}")
     return None
-
-# --- 2. FUNKCJA POMOCNICZA (BEZ ZMIAN) ---
 
 def discover_file_structure(local_test_path):
     """Mapuje lokalną strukturę plików."""
@@ -149,8 +137,6 @@ def discover_file_structure(local_test_path):
     print(f"Wykryto {len(identity_to_imgfolders)} folderów tożsamości z parami JPG/JSON.")
     return identity_to_imgfolders, image_pairs
 
-# --- 3. POMOCNIK GALERII (RÓWNOLEGŁY) ---
-
 def process_identity_for_gallery(args):
     """
     Funkcja robocza dla workera. Przetwarza jedno ID.
@@ -176,7 +162,6 @@ def process_identity_for_gallery(args):
         if img is None:
             continue
             
-        # Używamy nowej funkcji get_embedding
         embedding = get_embedding(img, vgg_model, detector, gpu_lock)
         if embedding is not None:
             id_embeddings.append(embedding)
@@ -187,8 +172,6 @@ def process_identity_for_gallery(args):
         return (identity_id, avg_embedding)
         
     return (identity_id, None)
-
-# --- 4. BUDOWANIE GALERII (RÓWNOLEGŁE) ---
 
 def build_faiss_gallery(vgg_model, detector, gpu_lock, identity_to_imgfolders, image_pairs):
     """
@@ -243,8 +226,6 @@ def build_faiss_gallery(vgg_model, detector, gpu_lock, identity_to_imgfolders, i
         json.dump(index_to_id_map, f)
         
     return True
-
-# --- 5. POMOCNIK EWALUACJI (RÓWNOLEGŁY) ---
 
 def process_occlusion_query(args):
     """
@@ -396,10 +377,8 @@ def run_occlusion_evaluation(vgg_model, detector, gpu_lock, identity_to_imgfolde
         print("\n--- Ewaluacja Zakończona (VGGFace) ---")
         print("Nie przetworzono żadnych zapytań.")
 
-# --- 6. GŁÓWNA FUNKCJA URUCHAMIAJĄCA ---
 
 def main():
-    # Krok 0: Załaduj modele (VGGFace, MTCNN) i blokadę
     vgg_model, detector, gpu_lock = initialize_services()
     
     local_test_path = os.path.join(BASE_FOLDER_LOCAL, "test")
@@ -409,7 +388,6 @@ def main():
         print("Zatrzymanie, nie znaleziono plików.")
         return
 
-    # Krok 1: Zbuduj galerię (indeks FAISS)
     print("--- ROZPOCZYNAM KROK 1: Budowanie Galerii FAISS ---")
     if not build_faiss_gallery(vgg_model, detector, gpu_lock, identity_to_imgfolders, image_pairs):
         print("Zatrzymanie skryptu z powodu błędu budowania galerii.")
@@ -418,7 +396,6 @@ def main():
     print("--- KROK 1: Zakończony Pomyślnie ---")
     
     
-    # Krok 2: Uruchom ewaluację z okluzją
     print("--- ROZPOCZYNAM KROK 2: Ewaluacja Okluzji ---")
     run_occlusion_evaluation(vgg_model, detector, gpu_lock, identity_to_imgfolders, image_pairs)
     

@@ -1,11 +1,9 @@
-# pip install scikit-learn matplotlib
-
 import faiss
 import json
 import numpy as np
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
-import matplotlib.cm as cm # Importujemy do obsługi map kolorów
+import matplotlib.cm as cm
 
 def visualize_faiss_index(index_file, map_file, output_image):
     print(f"Wczytywanie indeksu z {index_file}...")
@@ -25,7 +23,6 @@ def visualize_faiss_index(index_file, map_file, output_image):
         print(f"Error: {e}")
         return
 
-    # Krok 1: Wyciągnij wektory z indeksu FAISS
     num_vectors = index.ntotal
     dimension = index.d
     
@@ -41,16 +38,11 @@ def visualize_faiss_index(index_file, map_file, output_image):
         print("Upewnij się, że używasz IndexFlatIP.")
         return
 
-    # Krok 2: Przygotuj etykiety i kolory
-    # Tworzymy listę etykiet ['id_3', 'id_5', ...] we właściwej kolejności
     labels = [id_map.get(str(i), f"ID_{i}?") for i in range(num_vectors)]
 
-    # Generujemy unikalne kolory dla każdego ID
-    # Możemy użyć mapy kolorów z matplotlib
-    colors = cm.get_cmap('tab20', len(labels)) # 'tab20' to dobra mapa dla wielu kategorii
+    colors = cm.get_cmap('tab20', len(labels))
     point_colors = [colors(i) for i in range(len(labels))]
 
-    # Krok 3: Redukcja wymiarowości (t-SNE)
     print("Uruchamiam t-SNE, aby zredukować wymiary z 512 do 2...")
     print("To może potrwać chwilę...")
     
@@ -68,20 +60,16 @@ def visualize_faiss_index(index_file, map_file, output_image):
     
     vectors_2d = tsne.fit_transform(vectors)
 
-    # Krok 4: Rysowanie wykresu
     print(f"Tworzenie wykresu i zapisywanie do {output_image}...")
     plt.figure(figsize=(16, 12))
     
-    # Rozrzucamy punkty na wykresie, przypisując każdemu unikalny kolor
+    # Przypisujemy każdemu unikalny kolor
     scatter = plt.scatter(vectors_2d[:, 0], vectors_2d[:, 1], c=point_colors, alpha=0.7)
     
-    # Zamiast etykiet tekstowych przy punktach, dodajemy legendę
-    # Tworzymy fałszywe uchwyty do legendy, aby wyświetlić nazwy ID i odpowiadające im kolory
     legend_elements = [plt.Line2D([0], [0], marker='o', color='w', label=label,
                                   markerfacecolor=color, markersize=10)
                        for label, color in zip(labels, point_colors)]
     
-    # Umieszczamy legendę poza głównym obszarem wykresu, aby nie zasłaniała punktów
     plt.legend(handles=legend_elements, bbox_to_anchor=(1.05, 1), loc='upper left', title="ID Wektorów")
 
 
@@ -90,13 +78,12 @@ def visualize_faiss_index(index_file, map_file, output_image):
     plt.ylabel("Wymiar t-SNE 2")
     plt.grid(True)
     
-    # Zapisz plik
     plt.savefig(output_image, bbox_inches='tight', dpi=150)
     print(f"Gotowe! Wizualizacja zapisana w {output_image}")
 
 if __name__ == "__main__":
     visualize_faiss_index(
-        index_file="../ArcFace_Small/evaluate/gallery.index", 
-        map_file="../ArcFace_Small/evaluate/gallery_id_map.json", 
-        output_image="../ArcFace_Small/evaluate/gallery_visualization_colored.png" # Zmieniona nazwa pliku wyjściowego
+        index_file="../ArcFace_Large/evaluate/gallery_buffalo.index", 
+        map_file="../ArcFace_Large/evaluate/gallery_buffalo_map.json", 
+        output_image="../ArcFace_Large/evaluate/gallery_visualization_colored.png"
     )
