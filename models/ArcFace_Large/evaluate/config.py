@@ -7,5 +7,3 @@ FAISS_MAPPING_FILE = "gallery_id_map.json"
 
 RESULTS_CSV = "occlusion_results.csv"
 OCCLUSION_SIZE = 30
-
-NUM_WORKERS = 4
