@@ -195,7 +195,7 @@ class FaceModelWithAux(nn.Module):
 
 # --- 4. ZAMRAŻANIE ---
 def freeze_layers(model):
-    print("\n❄️ Konfiguracja zamrażania warstw...")
+    print("\n Konfiguracja zamrażania warstw...")
     frozen = 0
     trainable = 0
     for name, param in model.named_parameters():

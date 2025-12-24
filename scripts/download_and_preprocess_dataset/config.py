@@ -8,7 +8,7 @@ BUCKET_NAME = "casia_prepared_dataset-6e247f43"
 BASE_DATA_DIR = "../../../webface_112x112"
 
 SPLIT_RATIOS = {"train": 0.8, "val": 0.1, "test": 0.1}
-PROCESSING_ORDER = ["test", "val", "train"]
+PROCESSING_ORDER = ["train", "test", "val"]
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 

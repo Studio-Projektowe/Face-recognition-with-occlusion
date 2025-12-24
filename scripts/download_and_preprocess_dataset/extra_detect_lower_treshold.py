@@ -12,7 +12,7 @@ from config import BASE_DATA_DIR, PROCESSING_ORDER, DEVICE, NUM_WORKERS, IMAGE_E
 # --- KONFIGURACJA DODATKOWA ---
 # Ustawienie niższego progu, aby odzyskać trudne przypadki
 # Spróbuj najpierw 0.5. Jeśli za mało, możesz spróbować 0.3.
-DETECTION_THRESHOLD = 0.3
+DETECTION_THRESHOLD = 0.1
 # --- KONIEC KONFIGURACJI DODATKOWEJ ---
 
 # Konfiguracja logowania
