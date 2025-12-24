@@ -1,7 +1,7 @@
 import csv
 import sys
 # from config import RESULTS_CSV # Importuje nazwę pliku z config
-RESULTS_CSV = "../Model_B/alignment_train/metrics_stage2/evaluation_results_stage2_top3.csv"
+RESULTS_CSV = "../VGGFace/evaluate/occlusion_results_vgg.csv"
 def calculate_rank_k_accuracy(csv_file):
     print(f"Wczytywanie wyników z: {csv_file}")
     
