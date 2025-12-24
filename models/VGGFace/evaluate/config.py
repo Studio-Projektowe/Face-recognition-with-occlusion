@@ -1,7 +1,7 @@
 import os
 
 # --- Konfiguracja Ścieżek Lokalnych ---
-BASE_FOLDER_LOCAL = "../../scripts/casia_dataset/webface_112x112" 
+BASE_FOLDER_LOCAL = "../../../../webface_112x112" 
 
 # --- Ustawienia Równoległości ---
 # Ustaw na liczbę rdzeni CPU (lub więcej, jeśli masz szybki dysk NVMe)

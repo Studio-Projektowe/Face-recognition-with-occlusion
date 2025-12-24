@@ -8,13 +8,12 @@ import numpy as np
 import cv2
 import faiss
 from tqdm import tqdm
-import threading # Ważne dla bezpieczeństwa GPU
+import threading
 
 # Importy dla VGGFace
 import tensorflow as tf
 from keras_vggface.vggface import VGGFace
 from keras_vggface.utils import preprocess_input
-from mtcnn.mtcnn import MTCNN
 
 # Importy dla wielowątkowości
 from concurrent.futures import ThreadPoolExecutor, as_completed 
@@ -24,12 +23,12 @@ from config import (
     NUM_WORKERS
 )
 
-# --- 1. INICJALIZACJA MODELU (NOWA) ---
+# --- 1. INICJALIZACJA MODELU ---
 
 def initialize_services():
-    """Ładuje modele VGGFace, MTCNN i tworzy blokadę GPU."""
+    """Ładuje model VGGFace i tworzy blokadę GPU."""
     
-    # Upewnij się, że TF widzi GPU
+    # Konfiguracja GPU dla TensorFlow
     gpus = tf.config.experimental.list_physical_devices('GPU')
     if gpus:
         try:
@@ -39,19 +38,11 @@ def initialize_services():
         except RuntimeError as e:
             print(e)
     else:
-        print("OSTRZEŻENIE: Nie znaleziono GPU. Skrypt będzie działał bardzo wolno na CPU.")
+        print("OSTRZEŻENIE: Nie znaleziono GPU. Skrypt będzie działał wolno na CPU.")
 
-    print("Ładowanie detektora MTCNN... (to może potrwać chwilę)")
+    print("Ładowanie modelu VGGFace (RESNET-50)...")
     try:
-        detector = MTCNN()
-    except Exception as e:
-        print(f"BŁĄD: Nie udało się załadować detektora MTCNN: {e}")
-        sys.exit(1)
-
-    print("Ładowanie modelu VGGFace (RESNET-50)... (to może potrwać chwilę)")
-    try:
-        # Ładujemy model RESNET-50, bez górnych warstw klasyfikacyjnych
-        # 'pooling="avg"' da nam gotowy wektor cech
+        # Pooling='avg' daje nam wektor 2048-wymiarowy na wyjściu
         vgg_model = VGGFace(model='resnet50', 
                             include_top=False, 
                             input_shape=(224, 224, 3), 
@@ -60,60 +51,66 @@ def initialize_services():
         print(f"BŁĄD: Nie udało się załadować modelu VGGFace: {e}")
         sys.exit(1)
         
-    # Tworzymy blokadę, aby chronić Keras/GPU przed jednoczesnym dostępem
     gpu_lock = threading.Lock()
-    
     print("Inicjalizacja zakończona pomyślnie.")
-    return vgg_model, detector, gpu_lock
+    return vgg_model, gpu_lock
 
-def get_embedding(image_bgr, vgg_model, detector, gpu_lock):
+# --- 2. PREPROCESSING I EMBEDDING ---
+
+def preprocess_face_from_bbox(img, bbox, output_size=224, pad_ratio=0.2):
     """
-    Pobiera embedding (2048-d) dla pojedynczego obrazu używając MTCNN i VGGFace.
-    Jest to funkcja "thread-safe" dzięki blokadzie.
+    Wycina twarz na podstawie bbox [x1, y1, x2, y2] z marginesem i skaluje.
+    VGGFace wymaga 224x224.
+    """
+    h, w = img.shape[:2]
+    x1, y1, x2, y2 = [int(v) for v in bbox]
+    
+    # Dodajemy margines (padding), żeby nie ucinać brody/czubka głowy
+    bw = x2 - x1
+    bh = y2 - y1
+    pad_w = int(bw * pad_ratio)
+    pad_h = int(bh * pad_ratio)
+
+    x1c = max(0, x1 - pad_w)
+    y1c = max(0, y1 - pad_h)
+    x2c = min(w, x2 + pad_w)
+    y2c = min(h, y2 + pad_h)
+
+    crop = img[y1c:y2c, x1c:x2c]
+    
+    # Zabezpieczenie przed pustym cropem
+    if crop.size == 0:
+        return cv2.resize(img, (output_size, output_size))
+
+    return cv2.resize(crop, (output_size, output_size), interpolation=cv2.INTER_LINEAR)
+
+def get_embedding(face_bgr, vgg_model, gpu_lock):
+    """
+    Pobiera embedding dla wyciętej twarzy (224x224).
     """
     try:
-        img_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+        # VGGFace (ResNet50) oczekuje RGB (dla preprocess_input version=2)
+        face_rgb = cv2.cvtColor(face_bgr, cv2.COLOR_BGR2RGB)
         
-        detections = []
-        embedding = None
+        face = np.expand_dims(face_rgb, axis=0) # (1, 224, 224, 3)
+        face = face.astype('float32') 
         
-        # --- SEKCJA KRYTYCZNA (chroniona blokadą) ---
-        # MTCNN i Keras.predict NIE SĄ bezpieczne dla wątków.
-        # Tylko jeden wątek na raz może wykonywać ten blok.
+        # Version 2 jest dla modeli ResNet50 w keras-vggface
+        face = preprocess_input(face, version=2) 
+        
+        # Sekcja krytyczna (dostęp do GPU)
         with gpu_lock:
-            # Krok 1: Detekcja twarzy
-            detections = detector.detect_faces(img_rgb)
-            
-            if not detections:
-                return None # Nie znaleziono twarzy
-                
-            # Bierzemy pierwszą, największą twarz
-            x, y, w, h = detections[0]['box']
-            x1, y1 = max(0, x), max(0, y)
-            x2, y2 = min(img_rgb.shape[1], x+w), min(img_rgb.shape[0], y+h)
-            
-            face = img_rgb[y1:y2, x1:x2]
-            
-            # Krok 2: Skalowanie i preprocessing
-            face = cv2.resize(face, (224, 224))
-            face = np.expand_dims(face, axis=0) # (1, 224, 224, 3)
-            face = face.astype('float32') 
-            face = preprocess_input(face, version=2) # Wersja 2 dla RESNET/SENET
-            
-            # Krok 3: Ekstrakcja embeddingu
             embedding = vgg_model.predict(face, verbose=0)
-        # --- KONIEC SEKCJI KRYTYCZNEJ ---
             
-        return embedding.flatten() # Zwracamy wektor 1D (2048 wymiarów)
+        return embedding.flatten()
         
     except Exception as e:
-        tqdm.write(f"Warning: Błąd podczas pobierania embeddingu (VGGFace): {e}")
-    return None
+        # tqdm.write(f"Warning: Błąd VGGFace: {e}")
+        return None
 
-# --- 2. FUNKCJA POMOCNICZA (BEZ ZMIAN) ---
+# --- 3. ODKRYWANIE PLIKÓW ---
 
 def discover_file_structure(local_test_path):
-    """Mapuje lokalną strukturę plików."""
     print(f"Wykrywanie struktury plików w {local_test_path}...")
     search_pattern = os.path.join(local_test_path, "*", "*", "*.jpg")
     all_jpg_files = list(glob.glob(search_pattern))
@@ -149,17 +146,15 @@ def discover_file_structure(local_test_path):
     print(f"Wykryto {len(identity_to_imgfolders)} folderów tożsamości z parami JPG/JSON.")
     return identity_to_imgfolders, image_pairs
 
-# --- 3. POMOCNIK GALERII (RÓWNOLEGŁY) ---
+# --- 4. BUDOWANIE GALERII (WORKER) ---
 
 def process_identity_for_gallery(args):
-    """
-    Funkcja robocza dla workera. Przetwarza jedno ID.
-    """
-    id_path, identity_to_imgfolders, image_pairs, vgg_model, detector, gpu_lock = args
+    id_path, identity_to_imgfolders, image_pairs, vgg_model, gpu_lock = args
     
     identity_id = os.path.basename(id_path)
     image_folder_paths = sorted(list(identity_to_imgfolders[id_path]))
     
+    # Bierzemy pierwszą połowę folderów
     split_point = max(1, len(image_folder_paths) // 2)
     gallery_folders = image_folder_paths[:split_point]
     
@@ -168,16 +163,29 @@ def process_identity_for_gallery(args):
 
     id_embeddings = []
     for img_folder_path in gallery_folders:
-        local_path = image_pairs.get(img_folder_path, {}).get('jpg')
-        if not local_path:
-            continue
+        local_img = image_pairs.get(img_folder_path, {}).get('jpg')
+        local_json = image_pairs.get(img_folder_path, {}).get('json')
+        
+        if not local_img or not local_json: continue
             
-        img = cv2.imread(local_path)
-        if img is None:
-            continue
+        img = cv2.imread(local_img)
+        if img is None: continue
+        
+        # Wczytujemy JSON, żeby wyciąć twarz
+        bbox = None
+        try:
+            with open(local_json, 'r') as f:
+                data = json.load(f)
+                bbox = data.get('bbox')
+        except: pass
+        
+        # Jeśli mamy bbox -> wycinamy. Jeśli nie -> resize całego zdjęcia
+        if bbox:
+            face_img = preprocess_face_from_bbox(img, bbox, output_size=224)
+        else:
+            face_img = cv2.resize(img, (224, 224))
             
-        # Używamy nowej funkcji get_embedding
-        embedding = get_embedding(img, vgg_model, detector, gpu_lock)
+        embedding = get_embedding(face_img, vgg_model, gpu_lock)
         if embedding is not None:
             id_embeddings.append(embedding)
 
@@ -188,30 +196,25 @@ def process_identity_for_gallery(args):
         
     return (identity_id, None)
 
-# --- 4. BUDOWANIE GALERII (RÓWNOLEGŁE) ---
+# --- 5. FUNKCJA STERUJĄCA GALERII ---
 
-def build_faiss_gallery(vgg_model, detector, gpu_lock, identity_to_imgfolders, image_pairs):
-    """
-    Tworzy galerię FAISS równolegle używając ThreadPoolExecutor.
-    """
+def build_faiss_gallery(vgg_model, gpu_lock, identity_to_imgfolders, image_pairs):
     print(f"--- ROZPOCZYNAM Budowanie Galerii FAISS (równolegle z {NUM_WORKERS} workerami) ---")
     
     identity_paths = list(identity_to_imgfolders.keys())
-    if not identity_paths:
-        print("BŁĄD: Lista folderów tożsamości jest pusta.")
-        return False
+    if not identity_paths: return False
     
     gallery_embeddings = []
     index_to_id_map = {}
     faiss_index_counter = 0
 
-    tasks = [(id_path, identity_to_imgfolders, image_pairs, vgg_model, detector, gpu_lock) for id_path in identity_paths]
+    tasks = [(id_path, identity_to_imgfolders, image_pairs, vgg_model, gpu_lock) for id_path in identity_paths]
 
     with ThreadPoolExecutor(max_workers=NUM_WORKERS) as executor:
         results = list(tqdm(
             executor.map(process_identity_for_gallery, tasks), 
             total=len(tasks), 
-            desc="Tworzenie galerii ID (równolegle)"
+            desc="Tworzenie galerii"
         ))
 
     for identity_id, avg_embedding in results:
@@ -219,75 +222,91 @@ def build_faiss_gallery(vgg_model, detector, gpu_lock, identity_to_imgfolders, i
             gallery_embeddings.append(avg_embedding)
             index_to_id_map[faiss_index_counter] = identity_id
             faiss_index_counter += 1
-        else:
-            tqdm.write(f"Warning: Nie udało się wygenerować embeddingu dla {identity_id}")
 
-    print(f"Zakończono. Znaleziono {len(gallery_embeddings)} unikalnych tożsamości.")
-    
     if not gallery_embeddings:
-        print("BŁĄD: Galeria jest pusta, nie można zbudować indeksu FAISS.")
+        print("BŁĄD: Galeria jest pusta.")
         return False
         
     dimension = gallery_embeddings[0].shape[0] 
-    print(f"Wymiar embeddingu (VGGFace): {dimension}") # Powinno być 2048 dla RESNET50
-    gallery_matrix = np.array(gallery_embeddings).astype('float32')
+    print(f"Wymiar embeddingu: {dimension}")
     
+    gallery_matrix = np.array(gallery_embeddings).astype('float32')
     index = faiss.IndexFlatIP(dimension)
     index.add(gallery_matrix)
     
-    print(f"Zapisywanie indeksu FAISS do {FAISS_INDEX_FILE}...")
     faiss.write_index(index, FAISS_INDEX_FILE)
-    
-    print(f"Zapisywanie mapowania ID do {FAISS_MAPPING_FILE}...")
     with open(FAISS_MAPPING_FILE, 'w') as f:
         json.dump(index_to_id_map, f)
         
     return True
 
-# --- 5. POMOCNIK EWALUACJI (RÓWNOLEGŁY) ---
+# --- 6. EWALUACJA (WORKER) ---
+
+def apply_occlusion(image, landmarks_dict, bbox):
+    """Nakłada pasek okluzji na pełne zdjęcie."""
+    occluded_image = image.copy()
+    try:
+        left_eye_y = landmarks_dict["left_eye"][1]
+        right_eye_y = landmarks_dict["right_eye"][1]
+        eye_y_center = int((left_eye_y + right_eye_y) / 2)
+        bar_height_half = OCCLUSION_SIZE // 2
+        
+        face_x1 = int(bbox[0])
+        face_x2 = int(bbox[2])
+        
+        x1 = max(0, face_x1)
+        y1 = max(0, eye_y_center - bar_height_half)
+        x2 = min(image.shape[1], face_x2)
+        y2 = min(image.shape[0], eye_y_center + bar_height_half)
+        
+        cv2.rectangle(occluded_image, (x1, y1), (x2, y2), (0, 0, 0), -1)
+    except Exception:
+        return image.copy() 
+    return occluded_image
 
 def process_occlusion_query(args):
-    """
-    Funkcja robocza dla workera. Przetwarza jedno zapytanie okluzji.
-    """
-    img_folder_path, ground_truth_id, image_pairs, vgg_model, detector, gpu_lock, index, index_to_id_map, output_occlusion_dir = args
+    img_folder_path, ground_truth_id, image_pairs, vgg_model, gpu_lock, index, index_to_id_map, output_occlusion_dir = args
 
     local_img_path = image_pairs.get(img_folder_path, {}).get('jpg')
     local_json_path = image_pairs.get(img_folder_path, {}).get('json')
 
-    if not local_img_path or not local_json_path:
-        return f"Warning: Błąd mapowania dla {img_folder_path}"
+    if not local_img_path or not local_json_path: return None
 
     img = cv2.imread(local_img_path)
     json_data = None
     try:
         with open(local_json_path, 'r') as jf:
             json_data = json.load(jf)
-    except Exception as e:
-        return f"Warning: Błąd odczytu JSON {local_json_path}: {e}"
+    except: return None
     
     if (img is None or json_data is None or 
         "landmarks" not in json_data or "bbox" not in json_data):
-        return f"Warning: Brak pełnych danych dla {local_img_path}"
+        return None
 
-    occluded_img = apply_occlusion(img, json_data["landmarks"], json_data["bbox"])
+    # 1. Nałóż okluzję na PEŁNE zdjęcie
+    occluded_full_img = apply_occlusion(img, json_data["landmarks"], json_data["bbox"])
     
+    # Opcjonalny zapis
     try:
-        original_filename = os.path.basename(local_img_path)
-        save_path = os.path.join(output_occlusion_dir, f"occluded_{ground_truth_id}_{original_filename}")
-        cv2.imwrite(save_path, occluded_img)
-    except Exception as e:
-        tqdm.write(f"Warning: Nie udało się zapisać obrazu okluzji {save_path}: {e}")
+        if random.random() < 0.01:
+            original_filename = os.path.basename(local_img_path)
+            save_path = os.path.join(output_occlusion_dir, f"occ_{ground_truth_id}_{original_filename}")
+            cv2.imwrite(save_path, occluded_full_img)
+    except: pass
     
-    query_embedding = get_embedding(occluded_img, vgg_model, detector, gpu_lock)
+    # 2. Wytnij twarz (z paskiem) używając BBoxa
+    bbox = json_data["bbox"]
+    face_img = preprocess_face_from_bbox(occluded_full_img, bbox, output_size=224)
     
-    if query_embedding is None:
-        return f"Warning: Nie udało się uzyskać embeddingu dla {local_img_path}"
+    # 3. Zrób embedding
+    query_embedding = get_embedding(face_img, vgg_model, gpu_lock)
+    
+    if query_embedding is None: return None
         
     query_embedding_normalized = query_embedding / np.linalg.norm(query_embedding)
     query_vector = np.expand_dims(query_embedding_normalized, axis=0).astype('float32')
     
-    D, I = index.search(query_vector, 3) # Szukaj Top 3
+    D, I = index.search(query_vector, 3)
     
     top1_idx, top2_idx, top3_idx = I[0]
     top1_sim, top2_sim, top3_sim = D[0]
@@ -300,48 +319,19 @@ def process_occlusion_query(args):
     
     return [ground_truth_id, top1_id, f"{top1_sim:.4f}", top2_id, f"{top2_sim:.4f}", top3_id, f"{top3_sim:.4f}", is_correct]
 
-
-def apply_occlusion(image, landmarks_dict, bbox):
-    """Nakłada pasek okluzji na wysokości oczu o szerokości twarzy."""
-    occluded_image = image.copy()
-    try:
-        left_eye_y = landmarks_dict["left_eye"][1]
-        right_eye_y = landmarks_dict["right_eye"][1]
-        eye_y_center = int((left_eye_y + right_eye_y) / 2)
-        bar_height_half = OCCLUSION_SIZE // 2
-        face_x1 = int(bbox[0])
-        face_x2 = int(bbox[2])
-        x1 = face_x1
-        y1 = max(0, eye_y_center - bar_height_half)
-        x2 = face_x2
-        y2 = min(image.shape[0], eye_y_center + bar_height_half)
-        cv2.rectangle(occluded_image, (x1, y1), (x2, y2), (0, 0, 0), -1)
-    except Exception as e:
-        tqdm.write(f"Warning: Błąd podczas nakładania okluzji (np. brak landmarków): {e}")
-        return image.copy() 
-    return occluded_image
-
-def run_occlusion_evaluation(vgg_model, detector, gpu_lock, identity_to_imgfolders, image_pairs):
-    """
-    Testuje drugą połowę zdjęć równolegle.
-    """
-    print("Wczytywanie galerii FAISS i mapowania ID...")
+def run_occlusion_evaluation(vgg_model, gpu_lock, identity_to_imgfolders, image_pairs):
+    print("\n--- KROK 2: Ewaluacja z Okluzją ---")
     try:
         index = faiss.read_index(FAISS_INDEX_FILE)
         with open(FAISS_MAPPING_FILE, 'r') as f:
             index_to_id_map = json.load(f)
     except Exception as e:
-        print(f"BŁĄD: Nie udało się wczytać plików FAISS. Uruchom najpierw budowanie galerii.")
-        print(f"Error: {e}")
+        print(f"BŁĄD ładowania FAISS: {e}")
         return
 
-    print(f"Rozpoczynanie ewaluacji z okluzją (równolegle z {NUM_WORKERS} workerami)...")
-    
     identity_paths = list(identity_to_imgfolders.keys())
-    
     output_occlusion_dir = "occlusion_photos"
     os.makedirs(output_occlusion_dir, exist_ok=True)
-    print(f"Obrazy z okluzją będą zapisywane w: {output_occlusion_dir}")
     
     tasks = []
     for id_path in identity_paths:
@@ -353,12 +343,11 @@ def run_occlusion_evaluation(vgg_model, detector, gpu_lock, identity_to_imgfolde
 
         for img_folder_path in query_folders:
             tasks.append(
-                (img_folder_path, ground_truth_id, image_pairs, vgg_model, detector, gpu_lock, index, index_to_id_map, output_occlusion_dir)
+                (img_folder_path, ground_truth_id, image_pairs, vgg_model, gpu_lock, index, index_to_id_map, output_occlusion_dir)
             )
             
     if not tasks:
-        print("\n--- Ewaluacja Zakończona ---")
-        print("Nie znaleziono żadnych zapytań do przetworzenia.")
+        print("Brak zapytań.")
         return
 
     total_queries = 0
@@ -372,55 +361,36 @@ def run_occlusion_evaluation(vgg_model, detector, gpu_lock, identity_to_imgfolde
             results = list(tqdm(
                 executor.map(process_occlusion_query, tasks), 
                 total=len(tasks), 
-                desc="Testowanie okluzji (równolegle)"
+                desc="Testowanie"
             ))
 
         for result in results:
-            if isinstance(result, list):
+            if result:
                 writer.writerow(result)
-                is_correct = result[-1]
-                if is_correct:
-                    correct_top1 += 1
+                if result[-1]: correct_top1 += 1
                 total_queries += 1
-            else:
-                tqdm.write(str(result))
-
 
     if total_queries > 0:
         accuracy = (correct_top1 / total_queries) * 100
-        print(f"\n--- Ewaluacja Zakończona (VGGFace) ---")
-        print(f"Całkowita liczba zapytań: {total_queries}")
-        print(f"Poprawne trafienia Top-1: {correct_top1}")
-        print(f"Celność Top-1: {accuracy:.2f}%")
+        print(f"\nWYNIKI KOŃCOWE (VGGFace):")
+        print(f"  Zapytań: {total_queries}")
+        print(f"  Accuracy Top-1: {accuracy:.2f}%")
+        print(f"  Plik: {RESULTS_CSV}")
     else:
-        print("\n--- Ewaluacja Zakończona (VGGFace) ---")
-        print("Nie przetworzono żadnych zapytań.")
+        print("Brak wyników.")
 
-# --- 6. GŁÓWNA FUNKCJA URUCHAMIAJĄCA ---
+# --- 7. MAIN ---
 
 def main():
-    # Krok 0: Załaduj modele (VGGFace, MTCNN) i blokadę
-    vgg_model, detector, gpu_lock = initialize_services()
+    vgg_model, gpu_lock = initialize_services()
     
     local_test_path = os.path.join(BASE_FOLDER_LOCAL, "test")
-    
     identity_to_imgfolders, image_pairs = discover_file_structure(local_test_path)
-    if not identity_to_imgfolders:
-        print("Zatrzymanie, nie znaleziono plików.")
-        return
+    
+    if not identity_to_imgfolders: return
 
-    # Krok 1: Zbuduj galerię (indeks FAISS)
-    print("--- ROZPOCZYNAM KROK 1: Budowanie Galerii FAISS ---")
-    if not build_faiss_gallery(vgg_model, detector, gpu_lock, identity_to_imgfolders, image_pairs):
-        print("Zatrzymanie skryptu z powodu błędu budowania galerii.")
-        return
-    print("\n" + "="*50 + "\n")
-    print("--- KROK 1: Zakończony Pomyślnie ---")
-    
-    
-    # Krok 2: Uruchom ewaluację z okluzją
-    print("--- ROZPOCZYNAM KROK 2: Ewaluacja Okluzji ---")
-    run_occlusion_evaluation(vgg_model, detector, gpu_lock, identity_to_imgfolders, image_pairs)
+    if build_faiss_gallery(vgg_model, gpu_lock, identity_to_imgfolders, image_pairs):
+        run_occlusion_evaluation(vgg_model, gpu_lock, identity_to_imgfolders, image_pairs)
     
     print("Gotowe.")
 

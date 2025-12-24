@@ -6,4 +6,8 @@ https://stackoverflow.com/questions/51337558/how-to-import-keras-engine-topology
 > to:
 > from keras.utils.layer_utils import get_source_inputs
 
+```
+pip install keras_applications
+```
+
 https://stackoverflow.com/questions/77680911/import-error-in-google-colab-with-keras-utils
