@@ -4,7 +4,7 @@ import glob
 import json
 import csv
 import random
-import numpy as np
+import numpy as np 
 import cv2
 import faiss
 from tqdm import tqdm

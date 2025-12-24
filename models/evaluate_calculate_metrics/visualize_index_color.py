@@ -96,7 +96,7 @@ def visualize_faiss_index(index_file, map_file, output_image):
 
 if __name__ == "__main__":
     visualize_faiss_index(
-        index_file="gallery.index", 
-        map_file="gallery_id_map.json", 
-        output_image="gallery_visualization_colored.png" # Zmieniona nazwa pliku wyjściowego
+        index_file="../Loaded_weights_clean/evaluate/gallery_custom.index", 
+        map_file="../Loaded_weights_clean/evaluate/gallery_custom_map.json", 
+        output_image="../Loaded_weights_clean/evaluate/gallery_visualization_colored.png" # Zmieniona nazwa pliku wyjściowego
     )

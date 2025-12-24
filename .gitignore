@@ -4,7 +4,10 @@
 *.tfstate.*
 *.tfvars
 *.tfvars.json
-
+*.out
+*.txt
+*.pth
+*.csv
 *.ttx
 .env
 venv

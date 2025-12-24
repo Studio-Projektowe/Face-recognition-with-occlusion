@@ -10,7 +10,7 @@ import faiss
 import insightface
 from tqdm import tqdm
 # Usunięto import GCS
-from models.ArcFace_Large.evaluation.config import (
+from config import (
     BASE_FOLDER_LOCAL, # Nowa zmienna
     FAISS_INDEX_FILE, FAISS_MAPPING_FILE, RESULTS_CSV, OCCLUSION_SIZE
 )
