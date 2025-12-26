@@ -8,13 +8,14 @@ from torchvision import transforms
 import numpy as np
 import cv2
 import glob
+import json
 import random
 from tqdm import tqdm
+from skimage import transform as trans
 
-# --- KONFIGURACJA ---
 PRETRAINED_PATH = 'best_model_cbam.pth' 
-TRAIN_DIR = '../../../../webface_112x112/train' 
-VAL_DIR = '../../../../webface_112x112/val'     
+TRAIN_DIR = 'webface_112x112/train' 
+VAL_DIR = 'webface_112x112/test'      
 
 BATCH_SIZE = 64
 LR_CBAM = 0.01
@@ -23,7 +24,160 @@ EPOCHS = 10
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 OUTPUT_DIR = 'checkpoints_repair'
 
-# --- 1. DEFINICJE MODELU (Bez zmian) ---
+arcface_dst = np.array(
+    [[38.2946, 51.6963], [73.5318, 51.5014], [56.0252, 71.7366],
+     [41.5493, 92.3655], [70.7299, 92.2041]], 
+    dtype=np.float32)
+
+def estimate_norm(lmk, image_size=112, mode='arcface'):
+    assert lmk.shape == (5, 2)
+    tform = trans.SimilarityTransform()
+    tform.estimate(lmk, arcface_dst)
+    M = tform.params[0:2, :]
+    return M
+
+def norm_crop(img, landmark, image_size=112, mode='arcface'):
+    M = estimate_norm(landmark, image_size, mode)
+    warped = cv2.warpAffine(img, M, (image_size, image_size), borderValue=0.0)
+    return warped
+
+def get_landmarks_from_json(json_path):
+    """Parsuje JSON do formatu (5, 2) dla norm_crop."""
+    try:
+        with open(json_path, 'r') as f:
+            data = json.load(f)
+            lms = data.get('landmarks')
+            
+        if not lms: return None
+
+        # arcface_dst[0] to x=38 (lewa strona obrazka) -> u Ciebie w JSON to "right_eye" (x=41)
+        # arcface_dst[1] to x=73 (prawa strona obrazka) -> u Ciebie w JSON to "left_eye" (x=71)
+        # Więc mapujemy: [right_eye, left_eye, nose, mouth_right, mouth_left]
+        
+        kps = np.array([
+            lms['right_eye'],   # punkt 0
+            lms['left_eye'],    # punkt 1
+            lms['nose'],        # punkt 2
+            lms['mouth_right'], # punkt 3
+            lms['mouth_left']   # punkt 4
+        ], dtype=np.float32)
+        
+        return kps
+    except Exception as e:
+        # print(f"Error parsing JSON {json_path}: {e}")
+        return None
+
+class OcclusionDataset(Dataset):
+    def __init__(self, root_dir, transform=None):
+        self.root_dir = root_dir
+        self.transform = transform
+        self.image_paths = glob.glob(os.path.join(root_dir, "*", "*", "*.jpg"))
+        
+        if len(self.image_paths) == 0:
+            print(f"BŁĄD: Pusto w {root_dir}")
+            sys.exit(1)
+            
+        self.classes = sorted(list(set([
+            os.path.basename(os.path.dirname(os.path.dirname(p))) 
+            for p in self.image_paths
+        ])))
+        self.class_to_idx = {cls_name: i for i, cls_name in enumerate(self.classes)}
+        print(f"Train Dataset: {len(self.image_paths)} zdjęć.")
+
+    def __len__(self): return len(self.image_paths)
+
+    def __getitem__(self, idx):
+        path = self.image_paths[idx]
+        json_path = path.rsplit('.', 1)[0] + ".json"
+        
+        person_id = os.path.basename(os.path.dirname(os.path.dirname(path)))
+        label = self.class_to_idx[person_id]
+        
+        img = cv2.imread(path)
+        if img is None: img = np.zeros((112, 112, 3), dtype=np.uint8)
+        
+        landmarks = get_landmarks_from_json(json_path)
+        if landmarks is not None:
+            img = norm_crop(img, landmarks)
+        else:
+            if img.shape[0] != 112: img = cv2.resize(img, (112, 112))
+
+        h_bar = 10
+        center_y = 52
+        center_y += random.randint(-5, 5) 
+        
+        color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+        cv2.rectangle(img, (0, center_y - h_bar), (112, center_y + h_bar), color, -1)
+        
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        if self.transform: img_tensor = self.transform(img_rgb)
+        else: img_tensor = transforms.ToTensor()(img_rgb)
+        
+        return img_tensor, label
+
+class VerificationDataset(Dataset):
+    def __init__(self, root_dir, transform=None, num_identities=100):
+        self.transform = transform
+        self.pairs = [] 
+        all_identity_folders = glob.glob(os.path.join(root_dir, "*"))
+        random.shuffle(all_identity_folders)
+        
+        print(f"Szukanie par walidacyjnych...")
+        count = 0
+        for id_folder in all_identity_folders:
+            if count >= num_identities: break
+            imgs = glob.glob(os.path.join(id_folder, "*", "*.jpg"))
+            if len(imgs) < 2: continue
+            
+            valid_pair = []
+            for img_path in imgs:
+                json_path = img_path.rsplit('.', 1)[0] + ".json"
+                if os.path.exists(json_path):
+                    valid_pair.append((img_path, json_path))
+                if len(valid_pair) == 2: break
+            
+            if len(valid_pair) == 2:
+                self.pairs.append({
+                    'clean': valid_pair[0], # (img, json)
+                    'query': valid_pair[1], # (img, json)
+                    'label': count
+                })
+                count += 1
+                
+        print(f"Verification Set: {len(self.pairs)} par (Aligned).")
+
+    def __len__(self): return len(self.pairs)
+
+    def __getitem__(self, idx):
+        item = self.pairs[idx]
+        
+        img_c = cv2.imread(item['clean'][0])
+        lm_c = get_landmarks_from_json(item['clean'][1])
+        if lm_c is not None: img_c = norm_crop(img_c, lm_c)
+        else: img_c = cv2.resize(img_c, (112, 112))
+        img_c = cv2.cvtColor(img_c, cv2.COLOR_BGR2RGB)
+        
+        img_o = cv2.imread(item['query'][0])
+        lm_o = get_landmarks_from_json(item['query'][1])
+        
+        if lm_o is not None: img_o = norm_crop(img_o, lm_o) 
+        else: img_o = cv2.resize(img_o, (112, 112))
+        
+        h_bar = 10
+        color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+        cv2.rectangle(img_o, (0, 52 - h_bar), (112, 52 + h_bar), color, -1)
+        
+        img_o = cv2.cvtColor(img_o, cv2.COLOR_BGR2RGB)
+        
+        if self.transform:
+            ten_c = self.transform(img_c)
+            ten_o = self.transform(img_o)
+        else:
+            ten_c = transforms.ToTensor()(img_c)
+            ten_o = transforms.ToTensor()(img_o)
+            
+        return ten_c, ten_o, item['label']
+
 class ChannelAttention(nn.Module):
     def __init__(self, in_planes, ratio=16):
         super(ChannelAttention, self).__init__()
@@ -161,99 +315,10 @@ class ArcMarginProduct(nn.Module):
         output *= self.s
         return output
 
-# --- 3. DATASETY ---
-
-# Dataset Treningowy (Standardowy, z okluzją)
-class OcclusionDataset(Dataset):
-    def __init__(self, root_dir, transform=None):
-        self.root_dir = root_dir
-        self.transform = transform
-        self.image_paths = glob.glob(os.path.join(root_dir, "*", "*.jpg"))
-        self.classes = sorted(list(set([os.path.basename(os.path.dirname(p)) for p in self.image_paths])))
-        self.class_to_idx = {cls_name: i for i, cls_name in enumerate(self.classes)}
-        print(f"Train Dataset: {len(self.image_paths)} zdjęć.")
-
-    def __len__(self): return len(self.image_paths)
-
-    def apply_occlusion(self, img):
-        h, w, _ = img.shape
-        center_y = random.randint(45, 60)
-        h_bar = 10 
-        cv2.rectangle(img, (0, center_y - h_bar), (w, center_y + h_bar), (0,0,0), -1)
-        return img
-
-    def __getitem__(self, idx):
-        path = self.image_paths[idx]
-        label = self.class_to_idx[os.path.basename(os.path.dirname(path))]
-        img = cv2.imread(path)
-        if img is None: img = np.zeros((112, 112, 3), dtype=np.uint8)
-        if img.shape[0] != 112: img = cv2.resize(img, (112, 112))
-        
-        # Trening ZAWSZE z okluzją
-        img = self.apply_occlusion(img)
-        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        if self.transform: img_tensor = self.transform(img_rgb)
-        else: img_tensor = transforms.ToTensor()(img_rgb)
-        return img_tensor, label
-
-# --- NOWOŚĆ: Dataset do Weryfikacji (Rank-1) ---
-class VerificationDataset(Dataset):
-    def __init__(self, root_dir, transform=None, num_identities=100):
-        """Wybiera 100 tożsamości do szybkiego testu."""
-        self.transform = transform
-        self.pairs = [] # (Clean_Path, Occluded_Path, Label_Idx)
-        
-        all_folders = glob.glob(os.path.join(root_dir, "*"))
-        # Bierzemy tylko 10% (lub max num_identities) żeby było szybko
-        selected_folders = random.sample(all_folders, min(len(all_folders), num_identities))
-        
-        print(f"Przygotowywanie Verification Set ({len(selected_folders)} osób)...")
-        
-        for idx, folder in enumerate(selected_folders):
-            imgs = glob.glob(os.path.join(folder, "*.jpg"))
-            if len(imgs) >= 2:
-                # Bierzemy 2 pierwsze zdjęcia
-                # img1 -> Galeria (Czyste)
-                # img2 -> Query (Okluzja)
-                self.pairs.append((imgs[0], imgs[1], idx))
-                
-        print(f"Verification Set gotowy: {len(self.pairs)} par.")
-
-    def __len__(self): return len(self.pairs)
-
-    def apply_occlusion(self, img):
-        # Stała okluzja do testów (żeby były porównywalne)
-        h, w, _ = img.shape
-        cv2.rectangle(img, (0, 42), (w, 62), (0,0,0), -1) # Pasek 20px na oczach
-        return img
-
-    def __getitem__(self, idx):
-        path_clean, path_occ, label = self.pairs[idx]
-        
-        # 1. Load Clean
-        img_c = cv2.imread(path_clean)
-        if img_c.shape[0] != 112: img_c = cv2.resize(img_c, (112, 112))
-        img_c = cv2.cvtColor(img_c, cv2.COLOR_BGR2RGB)
-        
-        # 2. Load & Occlude Query
-        img_o = cv2.imread(path_occ)
-        if img_o.shape[0] != 112: img_o = cv2.resize(img_o, (112, 112))
-        img_o = self.apply_occlusion(img_o) # <--- Okluzja
-        img_o = cv2.cvtColor(img_o, cv2.COLOR_BGR2RGB)
-        
-        if self.transform:
-            ten_c = self.transform(img_c)
-            ten_o = self.transform(img_o)
-            
-        return ten_c, ten_o, label
-
-# --- 4. FUNKCJE POMOCNICZE ---
-
 def load_repair_model():
     print("Budowanie modelu...")
     backbone = IResNet(IBasicBlock, [3, 4, 14, 3], use_cbam=False)
     model = FrontEndCBAM(backbone, cbam_channels=64)
-    
     print(f"Wczytywanie 'Dobrego Backbone' z: {PRETRAINED_PATH}")
     if os.path.exists(PRETRAINED_PATH):
         checkpoint = torch.load(PRETRAINED_PATH, map_location='cpu')
@@ -264,7 +329,7 @@ def load_repair_model():
             if "cbam" in k or "ca." in k or "sa." in k: continue
             new_state_dict[f"backbone.{k}"] = v
         model.load_state_dict(new_state_dict, strict=False)
-        print("✅ Załadowano Backbone. CBAM zresetowany.")
+        print("Załadowano Backbone. CBAM zresetowany.")
     return model
 
 def freeze_backbone_keep_cbam(model):
@@ -274,55 +339,30 @@ def freeze_backbone_keep_cbam(model):
         if isinstance(module, (nn.BatchNorm2d, nn.BatchNorm1d)):
             for param in module.parameters(): param.requires_grad = True
 
-# --- NOWA FUNKCJA TESTUJĄCA ---
 def run_verification_test(model, val_loader, device):
     model.eval()
-    gallery_feats = []
-    query_feats = []
-    labels = []
-    
+    gallery_feats, query_feats, labels = [], [], []
     with torch.no_grad():
         for img_clean, img_occ, label in val_loader:
             img_clean, img_occ = img_clean.to(device), img_occ.to(device)
-            
-            # Embeddings
             emb_c = model(img_clean)
             emb_o = model(img_occ)
-            
-            # Normalize
             emb_c = torch.nn.functional.normalize(emb_c, p=2, dim=1)
             emb_o = torch.nn.functional.normalize(emb_o, p=2, dim=1)
-            
             gallery_feats.append(emb_c.cpu())
             query_feats.append(emb_o.cpu())
             labels.append(label)
-            
+    if len(gallery_feats) == 0: return 0.0
     gallery_feats = torch.cat(gallery_feats, dim=0)
     query_feats = torch.cat(query_feats, dim=0)
     labels = torch.cat(labels, dim=0)
-    
-    # Similarity Matrix (Cosine)
-    # [N_Query, 512] x [512, N_Gallery] = [N_Query, N_Gallery]
     sim_matrix = torch.mm(query_feats, gallery_feats.t())
-    
-    # Calculate Rank-1
     correct = 0
     total = labels.size(0)
-    
     for i in range(total):
-        # Dla zapytania i (Query[i]), szukamy w Galerii zdjęcia o tym samym ID co Label[i]
-        # Prawdziwy indeks w galerii to po prostu i (bo mamy pary 1:1 w tym datasecie)
-        
-        # Pobieramy indeks z największym podobieństwem
         best_match_idx = torch.argmax(sim_matrix[i]).item()
-        
-        # Sprawdzamy czy ID znalezionego zdjęcia zgadza się z ID zapytania
-        if labels[best_match_idx] == labels[i]:
-            correct += 1
-            
+        if labels[best_match_idx] == labels[i]: correct += 1
     return (correct / total) * 100
-
-# --- 5. MAIN ---
 
 def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -331,13 +371,11 @@ def main():
         transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
     ])
     
-    # Datasets
+    print("Inicjalizacja Datasetów (z Alignmentem)...")
     train_ds = OcclusionDataset(TRAIN_DIR, transform=transform)
-    # Używamy 200 tożsamości do testu (ok. 10-20% Twojego zbioru walidacyjnego)
     verification_ds = VerificationDataset(VAL_DIR, transform=transform, num_identities=200)
     
     train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True, num_workers=4)
-    # Verification loader (batch size może być większy, bo tylko forward)
     verify_loader = DataLoader(verification_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=2)
     
     model = load_repair_model().to(DEVICE)
@@ -349,19 +387,16 @@ def main():
     criterion = nn.CrossEntropyLoss()
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=3, gamma=0.1)
 
-    print(f"\n🚀 START NAPRAWY (Startowy Rank-1: sprawdzimy za chwilę...)")
+    print(f"\nSTART NAPRAWY (Startowy Rank-1: sprawdzimy za chwilę...)")
     
-    # Sprawdźmy stan zerowy (powinno być blisko 0% lub bardzo mało)
     acc_0 = run_verification_test(model, verify_loader, DEVICE)
-    print(f"📊 Stan zerowy (Random CBAM) -> Rank-1 Accuracy: {acc_0:.2f}% (Oczekiwane: b. niskie)")
+    print(f"Stan zerowy (Random CBAM + Alignment) -> Rank-1 Accuracy: {acc_0:.2f}%")
 
     best_acc = 0.0
-    
     for epoch in range(EPOCHS):
         model.train()
         metric_fc.train()
         total_loss = 0
-        
         loop = tqdm(train_loader, desc=f"Epoka {epoch+1}/{EPOCHS}")
         for imgs, labels in loop:
             imgs, labels = imgs.to(DEVICE), labels.to(DEVICE)
@@ -373,22 +408,19 @@ def main():
             optimizer.step()
             total_loss += loss.item()
             loop.set_postfix(loss=loss.item())
-            
         avg_loss = total_loss / len(train_loader)
         scheduler.step()
         
-        # TEST WERYFIKACJI
         current_acc = run_verification_test(model, verify_loader, DEVICE)
-        
-        print(f"✅ Epoka {epoch+1}: Train Loss: {avg_loss:.4f} | 🏆 Rank-1 Accuracy: {current_acc:.2f}%")
+        print(f"Epoka {epoch+1}: Train Loss: {avg_loss:.4f} | Rank-1 Accuracy: {current_acc:.2f}%")
         
         if current_acc > best_acc:
             best_acc = current_acc
             save_path = os.path.join(OUTPUT_DIR, 'repaired_cbam_best.pth')
             torch.save(model.state_dict(), save_path)
-            print(f"💾 Nowy rekord! Zapisano: {save_path}")
+            print(f"Nowy rekord! Zapisano: {save_path}")
 
-    print(f"\n🏁 Koniec. Najlepszy wynik z CBAM: {best_acc:.2f}%")
+    print(f"\nKoniec. Najlepszy wynik z CBAM: {best_acc:.2f}%")
 
 if __name__ == "__main__":
     main()
