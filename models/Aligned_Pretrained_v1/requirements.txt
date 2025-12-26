@@ -1,0 +1,5 @@
+numpy
+opencv-python
+onnxruntime
+# onnxruntime-gpu
+scikit-image

@@ -14,26 +14,19 @@ def move_image(image_path):
     Przenosi obraz ze struktury .../id/img.jpg do .../id/img/img.jpg
     """
     try:
-        # 1. Wyodrębnij części ścieżki
         file_dir = os.path.dirname(image_path)    # .../train/id_0001
         file_name = os.path.basename(image_path) # 0.jpg
         base_name = os.path.splitext(file_name)[0] # 0
 
-        # 2. Stwórz nową ścieżkę docelową
-        # Nowy folder: .../train/id_0001/0
         new_dir = os.path.join(file_dir, base_name)
         
-        # Nowa pełna ścieżka pliku: .../train/id_0001/0/0.jpg
         new_image_path = os.path.join(new_dir, file_name)
 
-        # 3. Jeśli już jest na miejscu, pomiń
         if os.path.exists(new_image_path):
             return image_path, "Skipped (already moved)"
 
-        # 4. Stwórz nowy folder
         os.makedirs(new_dir, exist_ok=True)
 
-        # 5. Przenieś plik
         shutil.move(image_path, new_image_path)
         
         return new_image_path, "Success"
@@ -53,7 +46,6 @@ def run():
         
         print(f"\nRozpoczynanie restrukturyzacji podziału: '{split}'...")
         
-        # 1. Znalezienie wszystkich obrazów w danym podziale
         # WAŻNE: Szukamy tylko na pierwszym poziomie podfolderów (id_xxx),
         # a nie rekursywnie, aby nie przetwarzać plików, które już przenieśliśmy.
         image_files = []
@@ -68,7 +60,6 @@ def run():
             
         print(f"Znaleziono {len(image_files)} obrazów do przeniesienia.")
 
-        # 2. Uruchomienie puli procesów
         with ProcessPoolExecutor(max_workers=NUM_WORKERS) as executor:
             futures = [executor.submit(move_image, img_path) for img_path in image_files]
             
