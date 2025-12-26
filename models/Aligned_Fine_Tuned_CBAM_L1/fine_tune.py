@@ -13,7 +13,7 @@ import random
 from tqdm import tqdm
 from skimage import transform as trans
 
-PRETRAINED_PATH = 'best_model_cbam.pth' 
+PRETRAINED_PATH = 'Aligned_pretrained_CBAM_L1.pth' 
 TRAIN_DIR = 'webface_112x112/train' 
 VAL_DIR = 'webface_112x112/test'      
 
