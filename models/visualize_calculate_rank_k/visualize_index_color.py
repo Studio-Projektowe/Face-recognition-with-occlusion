@@ -5,9 +5,9 @@ from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 
-INDEX_FILE   = "../ArcFace_Large/score/gallery.index"
-MAP_FILE     = "../ArcFace_Large/score/gallery_map.json"
-OUTPUT_IMAGE = "../ArcFace_Large/score/gallery_visualization_colored.png"
+INDEX_FILE   = "../Aligned_Pretrained_CBAM_L1/score/gallery.index"
+MAP_FILE     = "../Aligned_Pretrained_CBAM_L1/score/gallery_map.json"
+OUTPUT_IMAGE = "../Aligned_Pretrained_CBAM_L1/score/gallery_visualization_colored.png"
 
 def visualize_faiss_index(index_file, map_file, output_image):
     print(f"Wczytywanie indeksu z {index_file}...")
@@ -70,11 +70,11 @@ def visualize_faiss_index(index_file, map_file, output_image):
     # Przypisujemy każdemu unikalny kolor
     scatter = plt.scatter(vectors_2d[:, 0], vectors_2d[:, 1], c=point_colors, alpha=0.7)
     
-    legend_elements = [plt.Line2D([0], [0], marker='o', color='w', label=label,
-                                  markerfacecolor=color, markersize=10)
-                       for label, color in zip(labels, point_colors)]
+    # legend_elements = [plt.Line2D([0], [0], marker='o', color='w', label=label,
+    #                               markerfacecolor=color, markersize=10)
+    #                    for label, color in zip(labels, point_colors)]
     
-    plt.legend(handles=legend_elements, bbox_to_anchor=(1.05, 1), loc='upper left', title="ID Wektorów")
+    # plt.legend(handles=legend_elements, bbox_to_anchor=(1.05, 1), loc='upper left', title="ID Wektorów")
 
 
     plt.title("Wizualizacja t-SNE 'średnich' wektorów tożsamości z galerii FAISS (kolorowane ID)")

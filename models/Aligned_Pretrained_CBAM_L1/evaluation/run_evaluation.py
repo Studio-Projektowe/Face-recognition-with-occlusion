@@ -9,82 +9,36 @@ import torch
 import torch.nn as nn
 from torchvision import transforms
 from tqdm import tqdm
-from concurrent.futures import ThreadPoolExecutor
+from skimage import transform as trans
+from collections import defaultdict
 
-try:
-    from google.cloud import storage
-    from skimage import transform as trans
-except ImportError:
-    print("BŁĄD: Brak bibliotek.")
-    print("pip install google-cloud-storage scikit-image")
-    sys.exit(1)
-
-MODEL_PATH = 'Aligned_pretrained_CBAM_L1.pth'
-GCS_BUCKET_NAME = 'face-recognition-476110_cloudbuild'
-GCS_PREFIX = 'test'
-METRICS_DIR = 'metrics_cbam_gcs'
+BASE_DATA_DIR = '../webface_112x112/test'
+MODEL_PATH = '../best_model_cbam.pth'
+METRICS_DIR = 'metrics_local_occlusion'
 
 FAISS_INDEX_FILE = os.path.join(METRICS_DIR, 'gallery.index')
 FAISS_MAPPING_FILE = os.path.join(METRICS_DIR, 'gallery_map.json')
 RESULTS_CSV = os.path.join(METRICS_DIR, 'evaluation_results.csv')
-OCCLUSION_OUTPUT_DIR = os.path.join(METRICS_DIR, 'occlusion_photos_eval')
+OCCLUSION_OUTPUT_DIR = os.path.join(METRICS_DIR, 'occlusion_debug')
 
 BATCH_SIZE = 32
-DOWNLOAD_THREADS = 16
 OCCLUSION_SIZE = 20
-K_NEIGHBORS = 3
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 REFERENCE_POINTS_112 = np.array([
-    [30.2946, 51.6963],  # left eye
-    [65.5318, 51.5014],  # right eye
-    [48.0252, 71.7366],  # nose
-    [33.5493, 92.3655],  # left mouth
-    [62.7299, 92.2041]   # right mouth
+    [38.2946, 51.6963],
+    [73.5318, 51.5014],
+    [56.0252, 71.7366],
+    [41.5493, 92.3655],
+    [70.7299, 92.2041]
 ], dtype=np.float32)
 
 
-def norm_crop(img, landmark, image_size=112):
-    """
-    Wyrównuje twarz tak, aby oczy, nos i usta były w standardowych pozycjach.
-    landmark: lista 5 punktów [lewe_oko, prawe_oko, nos, lewe_usta, prawe_usta]
-    """
-    M = None
-    if image_size == 112:
-        src = np.array([
-            [38.2946, 51.6963],
-            [73.5318, 51.5014],
-            [56.0252, 71.7366],
-            [41.5493, 92.3655],
-            [70.7299, 92.2041] ], dtype=np.float32)
-    else:
-        src = REFERENCE_POINTS_112 # fallback
-    
-    dst = landmark.astype(np.float32)
-    tform = trans.SimilarityTransform()
-    tform.estimate(dst, src)
-    M = tform.params[0:2, :]
-    
-    warped = cv2.warpAffine(img, M, (image_size, image_size), borderValue=0.0)
-    return warped
-
-def align_face_wrapper(img, landmarks_dict):
-    """Wrapper parsujący słownik landmarków z JSONa do formatu numpy."""
-    try:
-        if landmarks_dict is None: return cv2.resize(img, (112, 112))
-        
-        kps = np.array([
-            landmarks_dict['left_eye'],
-            landmarks_dict['right_eye'],
-            landmarks_dict['nose'],
-            landmarks_dict['mouth_left'],
-            landmarks_dict['mouth_right']
-        ], dtype=np.float32)
-        
-        return norm_crop(img, kps, 112)
-    except Exception as e:
-        return cv2.resize(img, (112, 112))
-
+def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
+    return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
+                     padding=dilation, groups=groups, bias=False, dilation=dilation)
+def conv1x1(in_planes, out_planes, stride=1):
+    return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False)
 
 class ChannelAttention(nn.Module):
     def __init__(self, in_planes, ratio=16):
@@ -96,23 +50,17 @@ class ChannelAttention(nn.Module):
                                nn.Conv2d(in_planes // 16, in_planes, 1, bias=False))
         self.sigmoid = nn.Sigmoid()
     def forward(self, x):
-        avg_out = self.fc(self.avg_pool(x))
-        max_out = self.fc(self.max_pool(x))
-        out = avg_out + max_out
-        return self.sigmoid(out)
+        return self.sigmoid(self.fc(self.avg_pool(x)) + self.fc(self.max_pool(x)))
 
 class SpatialAttention(nn.Module):
     def __init__(self, kernel_size=7):
         super(SpatialAttention, self).__init__()
-        padding = 3 if kernel_size == 7 else 1
-        self.conv1 = nn.Conv2d(2, 1, kernel_size, padding=padding, bias=False)
+        self.conv1 = nn.Conv2d(2, 1, kernel_size, padding=3, bias=False)
         self.sigmoid = nn.Sigmoid()
     def forward(self, x):
         avg_out = torch.mean(x, dim=1, keepdim=True)
         max_out, _ = torch.max(x, dim=1, keepdim=True)
-        x = torch.cat([avg_out, max_out], dim=1)
-        x = self.conv1(x)
-        return self.sigmoid(x)
+        return self.sigmoid(self.conv1(torch.cat([avg_out, max_out], dim=1)))
 
 class CBAM(nn.Module):
     def __init__(self, planes, ratio=16, kernel_size=7):
@@ -123,16 +71,9 @@ class CBAM(nn.Module):
         out = x * self.ca(x)
         return out * self.sa(out)
 
-def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
-    return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
-                     padding=dilation, groups=groups, bias=False, dilation=dilation)
-def conv1x1(in_planes, out_planes, stride=1):
-    return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False)
-
 class IBasicBlock(nn.Module):
     expansion = 1
-    def __init__(self, inplanes, planes, stride=1, downsample=None,
-                 groups=1, base_width=64, dilation=1, use_cbam=False):
+    def __init__(self, inplanes, planes, stride=1, downsample=None, groups=1, base_width=64, dilation=1, use_cbam=False):
         super(IBasicBlock, self).__init__()
         self.bn1 = nn.BatchNorm2d(inplanes, eps=1e-05)
         self.conv1 = conv3x3(inplanes, planes)
@@ -141,7 +82,6 @@ class IBasicBlock(nn.Module):
         self.conv2 = conv3x3(planes, planes, stride)
         self.bn3 = nn.BatchNorm2d(planes, eps=1e-05)
         self.downsample = downsample
-        self.stride = stride
         self.use_cbam = use_cbam
         if self.use_cbam: self.cbam = CBAM(planes, 16)
     def forward(self, x):
@@ -159,31 +99,22 @@ class IBasicBlock(nn.Module):
 
 class IResNet(nn.Module):
     fc_scale = 7 * 7
-    def __init__(self, block, layers, dropout=0, num_features=512, zero_init_residual=False,
-                 groups=1, width_per_group=64, replace_stride_with_dilation=None, fp16=False, use_cbam=False):
+    def __init__(self, block, layers, dropout=0, num_features=512, use_cbam=False):
         super(IResNet, self).__init__()
         self.inplanes = 64
-        self.dilation = 1
-        if replace_stride_with_dilation is None: replace_stride_with_dilation = [False, False, False]
-        self.groups = groups
-        self.base_width = width_per_group
-        self.conv1 = nn.Conv2d(3, self.inplanes, kernel_size=3, stride=1, padding=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(self.inplanes, eps=1e-05)
-        self.prelu = nn.PReLU(self.inplanes)
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(64, eps=1e-05)
+        self.prelu = nn.PReLU(64)
         self.layer1 = self._make_layer(block, 64, layers[0], stride=2, use_cbam=use_cbam)
-        self.layer2 = self._make_layer(block, 128, layers[1], stride=2, dilate=replace_stride_with_dilation[0], use_cbam=use_cbam)
-        self.layer3 = self._make_layer(block, 256, layers[2], stride=2, dilate=replace_stride_with_dilation[1], use_cbam=use_cbam)
-        self.layer4 = self._make_layer(block, 512, layers[3], stride=2, dilate=replace_stride_with_dilation[2], use_cbam=use_cbam)
-        self.bn2 = nn.BatchNorm2d(512 * block.expansion, eps=1e-05)
+        self.layer2 = self._make_layer(block, 128, layers[1], stride=2, use_cbam=use_cbam)
+        self.layer3 = self._make_layer(block, 256, layers[2], stride=2, use_cbam=use_cbam)
+        self.layer4 = self._make_layer(block, 512, layers[3], stride=2, use_cbam=use_cbam)
+        self.bn2 = nn.BatchNorm2d(512, eps=1e-05)
         self.dropout = nn.Dropout(p=dropout, inplace=True)
-        self.fc = nn.Linear(512 * block.expansion * self.fc_scale, num_features)
+        self.fc = nn.Linear(512 * 7 * 7, num_features)
         self.features = nn.BatchNorm1d(num_features, eps=1e-05)
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d): nn.init.normal_(m.weight, 0, 0.1)
-            elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
-    def _make_layer(self, block, planes, blocks, stride=1, dilate=False, use_cbam=False):
+
+    def _make_layer(self, block, planes, blocks, stride=1, use_cbam=False):
         downsample = None
         if stride != 1 or self.inplanes != planes * block.expansion:
             downsample = nn.Sequential(
@@ -191,14 +122,12 @@ class IResNet(nn.Module):
                 nn.BatchNorm2d(planes * block.expansion, eps=1e-05),
             )
         layers = []
-        layers.append(block(self.inplanes, planes, stride, downsample, self.groups,
-                            self.base_width, self.dilation, use_cbam=use_cbam))
+        layers.append(block(self.inplanes, planes, stride, downsample, use_cbam=use_cbam))
         self.inplanes = planes * block.expansion
         for _ in range(1, blocks):
-            layers.append(block(self.inplanes, planes, groups=self.groups,
-                                base_width=self.base_width, dilation=self.dilation,
-                                use_cbam=use_cbam))
+            layers.append(block(self.inplanes, planes, use_cbam=use_cbam))
         return nn.Sequential(*layers)
+
     def forward(self, x):
         x = self.conv1(x)
         x = self.bn1(x)
@@ -224,6 +153,7 @@ class FrontEndCBAM(nn.Module):
         x = self.backbone.bn1(x)
         x = self.backbone.prelu(x)
         x = self.cbam1(x)
+
         x = self.backbone.layer1(x)
         x = self.backbone.layer2(x)
         x = self.backbone.layer3(x)
@@ -235,261 +165,310 @@ class FrontEndCBAM(nn.Module):
         x = self.backbone.features(x)
         return x
 
-transform = transforms.Compose([
+
+transform_pipeline = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
 ])
 
-def get_gcs_bucket():
-    storage_client = storage.Client()
-    return storage_client.bucket(GCS_BUCKET_NAME)
-
-def download_file_content(bucket, blob_path):
-    try: return bucket.blob(blob_path).download_as_bytes()
-    except: return None
-
-def initialize_custom_model():
-    print(f"Budowanie modelu FrontEndCBAM...")
+def load_model():
+    print(f"Ładowanie modelu z {MODEL_PATH}...")
     backbone = IResNet(IBasicBlock, [3, 4, 14, 3], use_cbam=False)
     model = FrontEndCBAM(backbone, cbam_channels=64)
     model.to(DEVICE)
     model.eval()
 
     if not os.path.exists(MODEL_PATH):
-        print(f"BŁĄD: Brak pliku {MODEL_PATH}")
+        print("BŁĄD: Nie znaleziono pliku wag.")
         sys.exit(1)
 
-    try:
-        checkpoint = torch.load(MODEL_PATH, map_location=DEVICE)
-        state_dict = checkpoint.get('state_dict', checkpoint)
-        new_state_dict = {}
-        for k, v in state_dict.items():
-            k = k.replace("module.", "")
-            if "cbam1.ca.fc" in k and "weight" in k and v.dim() == 2:
-                v = v.unsqueeze(-1).unsqueeze(-1)
-            if k.startswith("cbam1"): new_state_dict[k] = v
-            elif k.startswith("backbone."): new_state_dict[k] = v
-            else: new_state_dict[f"backbone.{k}"] = v
+    checkpoint = torch.load(MODEL_PATH, map_location=DEVICE)
+    state_dict = checkpoint.get('state_dict', checkpoint)
+    
+    new_state_dict = {}
+    for k, v in state_dict.items():
+        k = k.replace("module.", "")
+        if "cbam1.ca.fc" in k and "weight" in k and v.dim() == 2:
+            v = v.unsqueeze(-1).unsqueeze(-1)
+        if k.startswith("cbam1"): new_state_dict[k] = v
+        elif k.startswith("backbone."): new_state_dict[k] = v
+        else: new_state_dict[f"backbone.{k}"] = v
 
-        model.load_state_dict(new_state_dict, strict=True)
-        print("SUKCES: Wagi załadowane! (strict=True)")
-    except Exception as e:
-        print(f"BŁĄD wag: {e}")
-        sys.exit(1)
+    model.load_state_dict(new_state_dict, strict=True)
     return model
 
-def get_embeddings_batch(model, aligned_images_list):
-    """Oblicza embeddingi dla listy JUŻ WYRÓWNANYCH obrazów 112x112"""
-    if not aligned_images_list: return []
-    tensors = []
-    valid_indices = []
-    for i, img in enumerate(aligned_images_list):
-        if img is None: continue
-        try:
-            img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            tensors.append(transform(img_rgb))
-            valid_indices.append(i)
-        except: pass
-    if not tensors: return []
-    
-    batch_tensor = torch.stack(tensors).to(DEVICE)
-    with torch.no_grad():
-        embeddings = model(batch_tensor).cpu().numpy()
+def align_face(img, landmarks_dict):
+    """Wyrównuje twarz na podstawie słownika landmarków."""
+    if img is None: return None
+    try:
+        if not landmarks_dict:
+            return cv2.resize(img, (112, 112))
         
-    norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
-    embeddings = embeddings / (norms + 1e-10)
-    return embeddings, valid_indices
+        src = np.array([
+            landmarks_dict['left_eye'],
+            landmarks_dict['right_eye'],
+            landmarks_dict['nose'],
+            landmarks_dict['mouth_left'],
+            landmarks_dict['mouth_right']
+        ], dtype=np.float32)
 
-def discover_gcs_file_structure(bucket):
-    print(f"Skanowanie GCS...")
-    blobs = list(bucket.list_blobs(prefix=GCS_PREFIX))
-    jpg_files = [b.name for b in blobs if b.name.lower().endswith('.jpg')]
-    all_blob_names = set(b.name for b in blobs)
-    
-    if not jpg_files: return None, None
-    print(f"Znaleziono {len(jpg_files)} plików.")
-    
-    identity_to_imgfolders = {}
-    image_pairs = {} # key: folder_path, val: {jpg, json}
+        dst = REFERENCE_POINTS_112
+        tform = trans.SimilarityTransform()
+        tform.estimate(src, dst)
+        M = tform.params[0:2, :]
+        return cv2.warpAffine(img, M, (112, 112), borderValue=0.0)
+    except Exception as e:
+        print(f"Align Error: {e}")
+        return cv2.resize(img, (112, 112))
 
-    for jpg_path in tqdm(jpg_files, desc="Indeksowanie"):
-        base = jpg_path.rsplit('.', 1)[0]
-        json_path = base + ".json"
-        
-        parts = jpg_path.split('/')
-        if len(parts) < 3: continue
-        
-        folder_path = "/".join(parts[:-1])
-        identity = "/".join(parts[:-2])
-        
-        unique_key = jpg_path 
-        
-        if identity not in identity_to_imgfolders:
-            identity_to_imgfolders[identity] = []
-        identity_to_imgfolders[identity].append(unique_key)
-        
-        image_pairs[unique_key] = {'jpg': jpg_path, 'json': json_path if json_path in all_blob_names else None}
-
-    return identity_to_imgfolders, image_pairs
-
-def build_faiss_gallery_gcs(model, bucket, identity_to_imgfolders, image_pairs):
-    if os.path.exists(FAISS_INDEX_FILE):
-        print("Galeria istnieje.")
-        return True
-
-    print(f"Budowanie Galerii (z Align)...")
-    gallery_embeddings = []
-    index_to_id_map = {}
-    cnt = 0
-    all_tasks = []
-
-    for id_path, keys in identity_to_imgfolders.items():
-        keys = sorted(keys)
-        gallery_keys = keys[:max(1, len(keys) // 2)] # 50%
-        for k in gallery_keys:
-            data = image_pairs.get(k, {})
-            all_tasks.append((id_path.split('/')[-1], data['jpg'], data['json']))
-
-    for i in tqdm(range(0, len(all_tasks), BATCH_SIZE), desc="Galeria"):
-        batch = all_tasks[i:i+BATCH_SIZE]
-        images, metadatas = [None]*len(batch), [None]*len(batch)
-
-        with ThreadPoolExecutor(max_workers=DOWNLOAD_THREADS) as executor:
-            f_jpg = {executor.submit(download_file_content, bucket, t[1]): i for i, t in enumerate(batch)}
-            f_json = {executor.submit(download_file_content, bucket, t[2]): i for i, t in enumerate(batch) if t[2]}
-            
-            for f in f_jpg: 
-                d = f.result()
-                if d: images[f_jpg[f]] = cv2.imdecode(np.frombuffer(d, np.uint8), cv2.IMREAD_COLOR)
-            for f in f_json:
-                d = f.result()
-                if d: metadatas[f_json[f]] = json.loads(d)
-
-        aligned_imgs = []
-        for idx, img in enumerate(images):
-            if img is None: 
-                aligned_imgs.append(None)
-                continue
-            
-            md = metadatas[idx]
-            lms = md.get('landmarks') if md else None
-            aligned = align_face_wrapper(img, lms)
-            aligned_imgs.append(aligned)
-
-        embs_res = get_embeddings_batch(model, aligned_imgs)
-        if not embs_res: continue
-        embs, valid_indices = embs_res
-        
-        for k, v_idx in enumerate(valid_indices):
-            gallery_embeddings.append(embs[k])
-            index_to_id_map[cnt] = batch[v_idx][0]
-            cnt += 1
-
-    if not gallery_embeddings: return False
-    index = faiss.IndexFlatIP(gallery_embeddings[0].shape[0])
-    index.add(np.array(gallery_embeddings).astype('float32'))
-    faiss.write_index(index, FAISS_INDEX_FILE)
-    with open(FAISS_MAPPING_FILE, 'w') as f: json.dump(index_to_id_map, f)
-    return True
-
-def apply_occlusion_aligned(aligned_img):
-    """Nakłada pasek na JUŻ WYRÓWNANY obraz 112x112."""
-    occ = aligned_img.copy()
-    h, w = 112, 112
+def apply_occlusion(img):
+    """Rysuje czarny pasek na oczach (dla obrazu 112x112)."""
+    if img is None: return None
+    occ = img.copy()
     y = 52
     h_bar = OCCLUSION_SIZE // 2
-    cv2.rectangle(occ, (0, y - h_bar), (w, y + h_bar), (0,0,0), -1)
+    cv2.rectangle(occ, (0, y - h_bar), (112, y + h_bar), (0,0,0), -1)
     return occ
 
-def run_evaluation(model, bucket, identity_to_imgfolders, image_pairs):
-    print("Testowanie (z Align)...")
-    index = faiss.read_index(FAISS_INDEX_FILE)
-    with open(FAISS_MAPPING_FILE, 'r') as f: index_map = json.load(f)
+def get_embeddings(model, images):
+    """Batch processing embeddingów."""
+    if not images: return [], []
+    tensors = []
+    valid_indices = []
+    
+    for i, img in enumerate(images):
+        if img is None: continue
+        try:
+            rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            tensors.append(transform_pipeline(rgb))
+            valid_indices.append(i)
+        except: pass
+        
+    if not tensors: return [], []
+    
+    batch = torch.stack(tensors).to(DEVICE)
+    with torch.no_grad():
+        feats = model(batch).cpu().numpy()
+
+    norms = np.linalg.norm(feats, axis=1, keepdims=True)
+    feats = feats / (norms + 1e-10)
+    return feats, valid_indices
+
+def discover_local_data():
+    """Skanuje folder test/ i zwraca strukturę danych."""
+    print(f"Skanowanie folderu {BASE_DATA_DIR}...")
+    if not os.path.exists(BASE_DATA_DIR):
+        print(f"BŁĄD: Folder {BASE_DATA_DIR} nie istnieje.")
+        sys.exit(1)
+
+    identities_data = defaultdict(list)
+    
+    id_folders = [d for d in os.listdir(BASE_DATA_DIR) if os.path.isdir(os.path.join(BASE_DATA_DIR, d))]
+    
+    for id_name in tqdm(id_folders, desc="Indeksowanie"):
+        id_path = os.path.join(BASE_DATA_DIR, id_name)
+        
+        photo_folders = [d for d in os.listdir(id_path) if os.path.isdir(os.path.join(id_path, d))]
+        
+        for p_folder in photo_folders:
+            p_path = os.path.join(id_path, p_folder)
+
+            files = os.listdir(p_path)
+            jpg_file = next((f for f in files if f.lower().endswith('.jpg')), None)
+            
+            if jpg_file:
+                full_jpg_path = os.path.join(p_path, jpg_file)
+                base_name = os.path.splitext(jpg_file)[0]
+                json_file = base_name + ".json"
+                full_json_path = os.path.join(p_path, json_file)
+                
+                if not os.path.exists(full_json_path):
+                    full_json_path = None
+                    
+                identities_data[id_name].append({
+                    'jpg': full_jpg_path,
+                    'json': full_json_path
+                })
+
+    print(f"Znaleziono {len(identities_data)} tożsamości.")
+    return identities_data
+
+def build_gallery_and_query(model, identities_data):
+    """Tworzy galerię (mean embedding) i listę zapytań (occlusion)."""
+    
+    if os.path.exists(FAISS_INDEX_FILE) and os.path.exists(FAISS_MAPPING_FILE):
+        print("Galeria już istnieje. Wczytywanie...")
+        index = faiss.read_index(FAISS_INDEX_FILE)
+        with open(FAISS_MAPPING_FILE, 'r') as f:
+            mapping = json.load(f)
+        gallery_ready = True
+    else:
+        index = None
+        mapping = {}
+        gallery_ready = False
+
+    query_tasks = []
+    gallery_vectors = []
+    gallery_ids = []
+
+    sorted_ids = sorted(identities_data.keys())
+    
+    print("Przetwarzanie danych (Split 50/50)...")
+    for idx, id_name in enumerate(tqdm(sorted_ids, desc="Processing IDs")):
+        images_list = sorted(identities_data[id_name], key=lambda x: x['jpg'])
+        
+        split_idx = max(1, len(images_list) // 2)
+        gallery_files = images_list[:split_idx]
+        query_files = images_list[split_idx:]
+        
+        if not gallery_ready:
+            batch_imgs = []
+            for item in gallery_files:
+                img = cv2.imread(item['jpg'])
+                lms = None
+                if item['json']:
+                    with open(item['json'], 'r') as f:
+                        data = json.load(f)
+                        lms = data.get('landmarks')
+                
+                aligned = align_face(img, lms)
+                batch_imgs.append(aligned)
+            
+            embs, _ = get_embeddings(model, batch_imgs)
+            
+            if len(embs) > 0:
+                mean_emb = np.mean(embs, axis=0)
+                mean_emb = mean_emb / (np.linalg.norm(mean_emb) + 1e-10)
+                
+                gallery_vectors.append(mean_emb)
+                mapping[str(len(gallery_vectors)-1)] = id_name
+        
+        for item in query_files:
+            query_tasks.append({
+                'gt_id': id_name,
+                'jpg': item['jpg'],
+                'json': item['json']
+            })
+
+    if not gallery_ready and gallery_vectors:
+        gallery_vectors = np.array(gallery_vectors).astype('float32')
+        index = faiss.IndexFlatIP(512)
+        index.add(gallery_vectors)
+        faiss.write_index(index, FAISS_INDEX_FILE)
+        with open(FAISS_MAPPING_FILE, 'w') as f:
+            json.dump(mapping, f)
+        print(f"Zbudowano galerię: {gallery_vectors.shape[0]} wektorów.")
+
+    return index, mapping, query_tasks
+
+def run_evaluation_csv(model, index, mapping, query_tasks):
+    print(f"Rozpoczynanie ewaluacji na {len(query_tasks)} zdjęciach...")
     os.makedirs(OCCLUSION_OUTPUT_DIR, exist_ok=True)
     
-    query_tasks = []
-    for id_path, keys in identity_to_imgfolders.items():
-        keys = sorted(keys)
-        query_keys = keys[max(1, len(keys) // 2):]
-        gt_id = id_path.split('/')[-1]
-        for k in query_keys:
-            data = image_pairs.get(k)
-            query_tasks.append({'id': gt_id, 'jpg': data['jpg'], 'json': data['json']})
-
-    total, top1, top3 = 0, 0, 0
-    with open(RESULTS_CSV, 'w', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerow(["query_id", "top1", "sim1", "found_top3"])
-
-        for i in tqdm(range(0, len(query_tasks), BATCH_SIZE), desc="Test"):
+    top1 = 0
+    top3 = 0
+    total = 0
+    
+    with open(RESULTS_CSV, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(["query_id", "top1_id", "sim1", "top2_id", "sim2", "top3_id", "sim3", "found_in_top3?"])
+        
+        for i in tqdm(range(0, len(query_tasks), BATCH_SIZE), desc="Testowanie"):
             batch = query_tasks[i:i+BATCH_SIZE]
-            images, metadatas = [None]*len(batch), [None]*len(batch)
             
-            with ThreadPoolExecutor(max_workers=DOWNLOAD_THREADS) as executor:
-                f_jpg = {executor.submit(download_file_content, bucket, t['jpg']): idx for idx, t in enumerate(batch)}
-                f_json = {executor.submit(download_file_content, bucket, t['json']): idx for idx, t in enumerate(batch) if t['json']}
-                for f in f_jpg:
-                    d = f.result()
-                    if d: images[f_jpg[f]] = cv2.imdecode(np.frombuffer(d, np.uint8), cv2.IMREAD_COLOR)
-                for f in f_json:
-                    d = f.result()
-                    if d: metadatas[f_json[f]] = json.loads(d)
-
-            processed_imgs = []
-            valid_batch_indices = []
+            batch_imgs = []
+            valid_indices = []
             
-            for idx, img in enumerate(images):
+            for b_idx, task in enumerate(batch):
+                img = cv2.imread(task['jpg'])
                 if img is None: continue
                 
-                md = metadatas[idx]
-                lms = md.get('landmarks') if md else None
-                aligned = align_face_wrapper(img, lms)
+                lms = None
+                if task['json']:
+                    try:
+                        with open(task['json'], 'r') as f:
+                            jd = json.load(f)
+                            lms = jd.get('landmarks')
+                    except: pass
                 
-                occ_img = apply_occlusion_aligned(aligned)
+                aligned = align_face(img, lms)
                 
-                processed_imgs.append(occ_img)
-                valid_batch_indices.append(idx)
+                occ_img = apply_occlusion(aligned)
                 
-                if (total + idx) % 100 == 0:
-                     cv2.imwrite(f"{OCCLUSION_OUTPUT_DIR}/{batch[idx]['id']}_{total+idx}.jpg", occ_img)
-
-            embs_res = get_embeddings_batch(model, processed_imgs)
-            if not embs_res: continue
-            embs, valid_emb_indices = embs_res
+                if (total + b_idx) % 100 == 0:
+                     cv2.imwrite(f"{OCCLUSION_OUTPUT_DIR}/debug_{task['gt_id']}_{total+b_idx}.jpg", occ_img)
+                
+                batch_imgs.append(occ_img)
+                valid_indices.append(b_idx)
             
-            D, I = index.search(embs.astype('float32'), K_NEIGHBORS)
+            embs, valid_emb_map = get_embeddings(model, batch_imgs)
             
-            for k, emb_idx in enumerate(valid_emb_indices):
-                orig_idx = valid_batch_indices[emb_idx]
-                gt_id = batch[orig_idx]['id']
+            if len(embs) == 0: continue
+            
+            D, I = index.search(embs.astype('float32'), 3)
+            
+            for k, emb_idx in enumerate(valid_emb_map):
+                original_task_idx = valid_indices[emb_idx]
+                task = batch[original_task_idx]
+                gt_id = task['gt_id']
                 
-                res_row = [gt_id]
-                found = False
-                batch_top1 = False
+                res_ids = []
+                res_sims = []
                 
-                for n in range(K_NEIGHBORS):
-                    pid = index_map.get(str(I[k][n]), "N/A")
-                    res_row.extend([pid, f"{D[k][n]:.4f}"])
-                    if pid == gt_id:
-                        found = True
-                        if n == 0: batch_top1 = True
+                found_in_top3 = False
                 
-                if batch_top1: top1 += 1
-                if found: top3 += 1
+                for n in range(3):
+                    faiss_id = str(I[k][n])
+                    pred_id = mapping.get(faiss_id, "Unknown")
+                    score = D[k][n]
+                    
+                    res_ids.append(pred_id)
+                    res_sims.append(f"{score:.4f}")
+                    
+                    if pred_id == gt_id:
+                        found_in_top3 = True
+                
+                if res_ids[0] == gt_id:
+                    top1 += 1
+                if found_in_top3:
+                    top3 += 1
                 total += 1
-                res_row.append(found)
-                writer.writerow(res_row)
+                
+                row = [
+                    gt_id,
+                    res_ids[0], res_sims[0],
+                    res_ids[1], res_sims[1],
+                    res_ids[2], res_sims[2],
+                    found_in_top3
+                ]
+                writer.writerow(row)
 
+    print("\n" + "="*30)
     if total > 0:
-        print(f"\nWYNIKI: Acc@1: {top1/total:.2%}, Acc@3: {top3/total:.2%}")
+        print(f"Rank-1 Accuracy: {top1/total:.2%}")
+        print(f"Rank-3 Accuracy: {top3/total:.2%}")
+    else:
+        print("Brak danych do testowania.")
+    print("="*30)
+    print(f"Wyniki zapisano w: {RESULTS_CSV}")
 
 def main():
     os.makedirs(METRICS_DIR, exist_ok=True)
-    bucket = get_gcs_bucket()
-    model = initialize_custom_model()
-    ids, pairs = discover_gcs_file_structure(bucket)
-    if ids and build_faiss_gallery_gcs(model, bucket, ids, pairs):
-        run_evaluation(model, bucket, ids, pairs)
+    
+    model = load_model()
+    
+    data = discover_local_data()
+    
+    if not data:
+        print("Nie znaleziono danych w folderze test.")
+        return
+
+    index, mapping, queries = build_gallery_and_query(model, data)
+    
+    if queries:
+        run_evaluation_csv(model, index, mapping, queries)
+    else:
+        print("Brak zdjęć do testowania (Query set is empty).")
 
 if __name__ == "__main__":
     main()
