@@ -14,7 +14,6 @@ def run():
         print(f"BŁĄD: Folder '{BASE_DATA_DIR}' nie istnieje. Nic do wysłania.")
         sys.exit(1)
 
-    # 1. Weryfikacja dostępności gsutil
     try:
         subprocess.run(["gsutil", "--version"], check=True, capture_output=True)
     except FileNotFoundError:
@@ -25,7 +24,6 @@ def run():
         print(f"BŁĄD: Problem z gsutil: {e.stderr}")
         sys.exit(1)
 
-    # 2. Przygotowanie komendy
     # gsutil -m cp -r webface-112x112 gs://my-awesome-bucket/
     source_path = BASE_DATA_DIR
     destination_path = f"gs://{BUCKET_NAME}/"
@@ -41,7 +39,6 @@ def run():
 
     print(f"Uruchamianie komendy: {' '.join(command)}")
 
-    # 3. Uruchomienie wysyłania
     try:
         subprocess.run(command, check=True)
         print("Wysyłanie zakończone pomyślnie.")

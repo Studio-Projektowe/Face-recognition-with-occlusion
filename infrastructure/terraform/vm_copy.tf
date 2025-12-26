@@ -23,6 +23,13 @@ resource "google_compute_disk" "data_disk" {
   snapshot = local.snapshot_data_name
 }
 
+resource "google_compute_disk" "data_disk_copy_2_zone" {
+  name  = "${local.vm_name}-copy-zone"
+  type  = "pd-ssd"
+  zone  = local.zone
+  snapshot = "data-toronto-2"
+}
+
 resource "google_compute_instance" "rescue_vm" {
   name         = local.vm_name
   machine_type = local.machine_type
@@ -55,10 +62,13 @@ resource "google_compute_instance" "rescue_vm" {
     on_host_maintenance = "TERMINATE"
     automatic_restart   = true
   }
-}
 
-output "ssh_info" {
-  value = "Po utworzeniu wejdź przez: gcloud compute ssh ${local.vm_name} --zone ${local.zone}"
+  lifecycle {
+    ignore_changes = [
+      metadata["ssh-keys"], 
+      desired_status 
+    ]
+  }
 }
 
 # resource "google_workbench_instance" "notebook_instance_copy" {

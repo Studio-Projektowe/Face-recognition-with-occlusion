@@ -9,16 +9,10 @@ from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed 
 from config import BASE_DATA_DIR, PROCESSING_ORDER, DEVICE, NUM_WORKERS, IMAGE_EXTENSIONS
 
-# --- KONFIGURACJA DODATKOWA ---
-# Ustawienie niższego progu, aby odzyskać trudne przypadki
-# Spróbuj najpierw 0.5. Jeśli za mało, możesz spróbować 0.3.
 DETECTION_THRESHOLD = 0.1
-# --- KONIEC KONFIGURACJI DODATKOWEJ ---
 
-# Konfiguracja logowania
 logging.basicConfig(level=logging.INFO)
 logging.getLogger('RetinaFace').setLevel(logging.WARNING)
-
 
 def process_missing_json(image_path, model):
     """
@@ -26,38 +20,31 @@ def process_missing_json(image_path, model):
     Zastosowano obniżony próg ufności.
     """
     try:
-        # 1. Obliczenie ścieżki wyjściowej JSON
         base_name = os.path.splitext(image_path)[0]
         json_path = base_name + ".json"
 
-        # KRYTERIUM: Jeśli plik JSON już istnieje, pomijamy!
         if os.path.exists(json_path):
             return image_path, "Skipped (JSON exists)"
 
-        # 2. Wczytanie obrazu (BGR)
         img_bgr = cv2.imread(image_path)
         if img_bgr is None:
             return image_path, "Failed to read image"
         
         img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
 
-        # 3. Detekcja twarzy z NOWYM, OBNIŻONYM PROGIEM
-        # Próg jest przekazywany bezpośrednio do funkcji detect_faces
         faces = RetinaFace.detect_faces(
             img_path=img_rgb, 
             model=model,
-            threshold=DETECTION_THRESHOLD # Użycie obniżonego progu
+            threshold=DETECTION_THRESHOLD
         )
         
         if not isinstance(faces, dict) or not faces:
             return image_path, "No face detected (even with reduced threshold)"
 
-        # 4. Wybór najlepszej twarzy (z najwyższym 'score')
         best_face = None
         best_score = -1.0
         
         for face_data in faces.values():
-            # Sprawdzamy score ponownie, aby wybrać najlepszą detekcję
             if face_data['score'] > best_score:
                 best_score = face_data['score']
                 best_face = face_data
@@ -65,7 +52,6 @@ def process_missing_json(image_path, model):
         if best_face is None:
             return image_path, "Detection parsing error"
 
-        # 5. Konwersja typów numpy na float dla JSON
         converted_landmarks = {
             key: [float(coord[0]), float(coord[1])] 
             for key, coord in best_face["landmarks"].items()
@@ -77,7 +63,6 @@ def process_missing_json(image_path, model):
             "confidence": float(best_face["score"])
         }
 
-        # 6. Zapis pliku JSON
         with open(json_path, 'w') as f:
             json.dump(output_data, f, indent=4)
 
@@ -91,13 +76,11 @@ def run():
     print(f"Używany próg ufności: {DETECTION_THRESHOLD}")
     print(f"Liczba wątków roboczych: {NUM_WORKERS}")
 
-    # 1. Ładujemy model JEDEN RAZ
     print("Ładowanie modelu RetinaFace...")
     try:
         if DEVICE == 'cpu':
             os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
         
-        # Ładujemy surowy model
         model = RetinaFace.build_model()
         print("Model załadowany pomyślnie.")
         
@@ -105,7 +88,6 @@ def run():
         print(f"BŁĄD KRYTYCZNY: Nie udało się załadować modelu RetinaFace: {e}")
         sys.exit(1)
 
-    # Iterujemy przez train, val, test
     for split in PROCESSING_ORDER:
         split_dir = os.path.join(BASE_DATA_DIR, split)
         if not os.path.exists(split_dir):
@@ -113,19 +95,16 @@ def run():
         
         print(f"\nRozpoczynanie przetwarzania podziału: '{split}'...")
         
-        # 2. Znajdowanie plików, dla których brakuje JSON
         files_to_process = []
         for ext in IMAGE_EXTENSIONS:
             pattern = os.path.join(split_dir, "**", f"*{ext}")
             
-            # Wyszukujemy wszystkie pliki graficzne
             all_image_files = glob.glob(pattern, recursive=True)
 
             for img_path in all_image_files:
                 base_name = os.path.splitext(img_path)[0]
                 json_path = base_name + ".json"
                 
-                # Dodajemy do listy tylko te, dla których JSON nie istnieje
                 if not os.path.exists(json_path):
                     files_to_process.append(img_path)
 
@@ -135,7 +114,6 @@ def run():
             
         print(f"Znaleziono {len(files_to_process)} obrazów do ponownego przetworzenia.")
 
-        # 3. Używamy ThreadPoolExecutor
         with ThreadPoolExecutor(max_workers=NUM_WORKERS) as executor:
             
             futures = [
