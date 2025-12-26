@@ -23,6 +23,13 @@ resource "google_compute_disk" "data_disk" {
   snapshot = local.snapshot_data_name
 }
 
+resource "google_compute_disk" "data_disk_copy_2_zone" {
+  name  = "${local.vm_name}-copy-zone"
+  type  = "pd-ssd"
+  zone  = local.zone
+  snapshot = "data-toronto-2"
+}
+
 resource "google_compute_instance" "rescue_vm" {
   name         = local.vm_name
   machine_type = local.machine_type

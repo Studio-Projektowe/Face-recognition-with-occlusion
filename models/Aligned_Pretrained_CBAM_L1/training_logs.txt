@@ -1,0 +1,88 @@
+Ładowanie pretrenowanych wag z: best_model_merged.pth
+Załadowano: 475 warstw
+Pominięto: 0 warstw
+Nowe warstwy CBAM: 3
+
+Konfiguracja zamrażania warstw...
+Zamrożono: 23 parametrów. Do treningu: 218 parametrów.
+Skanowanie folderów: ['../../../../webface_112x112/train', '../../../../webface_112x112/val']...
+Znaleziono łącznie 442710 zdjęć w 9514 tożsamościach.
+Dzielenie zbioru: 398439 (Train) + 44271 (Val)
+
+Parametry do treningu:
+   - Backbone: 42248320 params
+   - CBAM: 610 params
+   - Head: 5015089 params
+
+START TRENINGU CBAM:
+   Backbone LR=0.0005, CBAM LR=0.001, Head LR=0.01
+   Batch=32, Epoki=25
+Metrics will be saved to: metrics_cbam/training_metrics_cbam_20251218_194756.csv
+Creating IResNet50 + CBAM model...
+Loading pretrained weights from: Aligned_pretrained_v1.pth
+Loaded: 475 layers
+Skipped: 0 layers
+New CBAM layers: 3
+
+Configuring layer freezing...
+Frozen: 23 parameters. Trainable: 218 parameters.
+Scanning folders: ['../../../../webface_112x112/train', '../../../../webface_112x112/val']...
+Found 442710 images in 9514 identities.
+Splitting dataset: 398439 (Train) + 44271 (Val)
+
+Trainable parameters:
+   - Backbone: 42248320 params
+   - CBAM: 610 params
+   - Head: 5015089 params
+
+STARTING CBAM TRAINING:
+   Backbone LR=0.0005, CBAM LR=0.001, Head LR=0.01
+   Batch=32, Epoki=25
+Epoch 1: Train Loss: 15.6353 | Val Loss: 12.7370 | Rank-1: 9.00% | Rank-3: 10.00%
+   Val Loss decreased (12.736964 --> 12.736964). Saving model...
+Epoch 2: Train Loss: 11.3029 | Val Loss: 10.4879 | Rank-1: 9.60% | Rank-3: 10.20%
+   Val Loss decreased (10.487897 --> 10.487897). Saving model...
+Epoch 3: Train Loss: 9.6865 | Val Loss: 9.7419 | Rank-1: 9.40% | Rank-3: 10.00%
+   Val Loss decreased (9.741923 --> 9.741923). Saving model...
+Epoch 4: Train Loss: 9.1753 | Val Loss: 9.5800 | Rank-1: 9.60% | Rank-3: 10.20%
+   Val Loss decreased (9.579981 --> 9.579981). Saving model...
+Epoch 5: Train Loss: 9.0166 | Val Loss: 9.5954 | Rank-1: 9.40% | Rank-3: 10.00%
+   EarlyStopping: 1/5 (Val Loss not improving)
+Epoch 6: Train Loss: 8.9086 | Val Loss: 9.5693 | Rank-1: 9.60% | Rank-3: 10.40%
+   Val Loss decreased (9.569316 --> 9.569316). Saving model...
+Epoch 7: Train Loss: 8.7816 | Val Loss: 9.6233 | Rank-1: 9.00% | Rank-3: 9.80%
+   EarlyStopping: 1/5 (Val Loss not improving)
+Epoch 8: Train Loss: 8.6519 | Val Loss: 9.5656 | Rank-1: 9.40% | Rank-3: 10.80%
+   Val Loss decreased (9.565573 --> 9.565573). Saving model...
+Epoch 9: Train Loss: 8.4991 | Val Loss: 9.6005 | Rank-1: 9.40% | Rank-3: 10.40%
+   EarlyStopping: 1/5 (Val Loss not improving)
+Epoch 10: Train Loss: 8.3528 | Val Loss: 9.5726 | Rank-1: 9.00% | Rank-3: 9.80%
+   EarlyStopping: 2/5 (Val Loss not improving)
+Epoch 11: Train Loss: 8.2328 | Val Loss: 9.6182 | Rank-1: 9.80% | Rank-3: 10.40%
+   EarlyStopping: 3/5 (Val Loss not improving)
+Epoch 12: Train Loss: 6.9342 | Val Loss: 8.9793 | Rank-1: 9.20% | Rank-3: 10.20%
+   Val Loss decreased (8.979327 --> 8.979327). Saving model...
+Epoch 13: Train Loss: 6.6208 | Val Loss: 8.8890 | Rank-1: 9.00% | Rank-3: 9.60%
+   Val Loss decreased (8.888979 --> 8.888979). Saving model...
+Epoch 14: Train Loss: 6.4999 | Val Loss: 8.8521 | Rank-1: 8.80% | Rank-3: 10.40%
+   Val Loss decreased (8.852082 --> 8.852082). Saving model...
+Epoch 15: Train Loss: 6.4265 | Val Loss: 8.8572 | Rank-1: 9.20% | Rank-3: 10.00%
+   EarlyStopping: 1/5 (Val Loss not improving)
+Epoch 16: Train Loss: 6.3789 | Val Loss: 8.8501 | Rank-1: 9.40% | Rank-3: 9.60%
+   Val Loss decreased (8.850070 --> 8.850070). Saving model...
+Epoch 17: Train Loss: 6.3426 | Val Loss: 8.8423 | Rank-1: 9.60% | Rank-3: 10.60%
+   Val Loss decreased (8.842280 --> 8.842280). Saving model...
+Epoch 18: Train Loss: 6.3130 | Val Loss: 8.8653 | Rank-1: 9.20% | Rank-3: 9.80%
+   EarlyStopping: 1/5 (Val Loss not improving)
+Epoch 19: Train Loss: 6.2878 | Val Loss: 8.8603 | Rank-1: 9.80% | Rank-3: 10.20%
+   EarlyStopping: 2/5 (Val Loss not improving)
+Epoch 20: Train Loss: 6.2675 | Val Loss: 8.8755 | Rank-1: 9.20% | Rank-3: 10.40%
+   EarlyStopping: 3/5 (Val Loss not improving)
+Epoch 21: Train Loss: 6.0471 | Val Loss: 8.8491 | Rank-1: 9.80% | Rank-3: 10.00%
+   EarlyStopping: 4/5 (Val Loss not improving)
+Epoch 22: Train Loss: 6.0296 | Val Loss: 8.8512 | Rank-1: 9.40% | Rank-3: 10.40%
+   EarlyStopping: 5/5 (Val Loss not improving)
+Early Stopping triggered.
+CBAM training completed.
+Best model saved to: best_model_cbam.pth
+Metrics saved to: metrics_cbam/training_metrics_cbam_20251218_194756.csv
