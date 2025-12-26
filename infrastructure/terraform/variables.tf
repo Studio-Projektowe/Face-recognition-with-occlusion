@@ -15,3 +15,9 @@ variable "ZONE" {
   type        = string
   default     = "northamerica-northeast1-b"
 }
+
+variable "STATE_BUCKET" {
+  description = "The name of the GCS bucket for Terraform state."
+  type        = string
+  default     = "terraform-remote-backend-17b99faefb6860c1"
+}

@@ -178,3 +178,24 @@ script and propably again set an _image url_ atribute (refresh it i.e. in GCP UX
 > | - script.py
 > ```
 > ! Change name of _image_folder_ and env variables in `"google_cloud_run_v2_job" "casia_download"` and `build_run/` scripts.
+
+> [!IMPORTANT]
+> **Troubleshooting: Terraform & Google Cloud Auth Quota**
+>
+> If you are returning to this project and encountering `Error 403: Your application is authenticating by using local Application Default Credentials` when creating a `google_workbench_instance`, it is likely due to a missing quota project in your local ADC setup.
+>
+> **The Error:**
+> ```text
+> Error: Error waiting to create Instance: ... notebooks.googleapis.com API requires a quota project, which is not set by default.
+> ```
+>
+> **The Fix:**
+> Update your `provider "google"` block in Terraform to explicitly override the user project and set the billing project.
+>
+> ```hcl
+> provider "google" {
+>   # ... other configuration ...
+>   billing_project       = var.PROJECT_ID
+>   user_project_override = true
+> }
+> ```

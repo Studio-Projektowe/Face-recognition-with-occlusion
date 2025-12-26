@@ -30,15 +30,12 @@ def run():
         print("BŁĄD: Komenda 'kaggle' nie znaleziona. Upewnij się, że jest zainstalowana.")
         sys.exit(1)
 
-    # 2. Znalezienie pliku .zip
-    # Nazwa pliku zip to zazwyczaj 'nazwa-datasetu.zip'
     zip_filename = KAGGLE_DATASET.split('/')[-1] + ".zip"
     
     if not os.path.exists(zip_filename):
         print(f"BŁĄD: Nie znaleziono pobranego pliku {zip_filename}")
         sys.exit(1)
 
-    # 3. Rozpakowanie
     print(f"Rozpakowywanie {zip_filename}...")
     try:
         with zipfile.ZipFile(zip_filename, 'r') as zip_ref:
@@ -48,11 +45,9 @@ def run():
         print(f"BŁĄD: Plik {zip_filename} nie jest poprawnym plikiem ZIP.")
         sys.exit(1)
 
-    # 4. Sprzątanie
     os.remove(zip_filename)
     print(f"Usunięto archiwum {zip_filename}.")
     
-    # 5. Weryfikacja
     if not os.path.exists(BASE_DATA_DIR):
         print(f"BŁĄD: Po rozpakowaniu nie znaleziono oczekiwanego folderu '{BASE_DATA_DIR}'.")
         print("Sprawdź, czy nazwa BASE_DATA_DIR w config.py zgadza się z zawartością archiwum.")
@@ -61,7 +56,4 @@ def run():
     print("--- Etap 1: Zakończony Pomyślnie ---")
 
 if __name__ == "__main__":
-    # Umożliwia testowe uruchomienie tylko tego skryptu
-    # Wymaga ręcznego ustawienia zmiennych:
-    # os.environ["KAGGLE_DATASET"] = "larryfreeman/webface-112x112"
     run()
