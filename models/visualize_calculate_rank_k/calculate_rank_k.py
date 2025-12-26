@@ -1,7 +1,7 @@
 import csv
 import sys
 
-RESULTS_CSV = "../../scores/ArcFace_Large/occlusion_results.csv"
+RESULTS_CSV = "../ArcFace_Small/score/occlusion_results.csv"
 
 def calculate_rank_k_accuracy(csv_file):
     print(f"Wczytywanie wyników z: {csv_file}")

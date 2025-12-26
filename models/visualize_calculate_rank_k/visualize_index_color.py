@@ -5,6 +5,10 @@ from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 
+INDEX_FILE   = "../ArcFace_Large/score/gallery.index"
+MAP_FILE     = "../ArcFace_Large/score/gallery_map.json"
+OUTPUT_IMAGE = "../ArcFace_Large/score/gallery_visualization_colored.png"
+
 def visualize_faiss_index(index_file, map_file, output_image):
     print(f"Wczytywanie indeksu z {index_file}...")
     try:
@@ -83,7 +87,7 @@ def visualize_faiss_index(index_file, map_file, output_image):
 
 if __name__ == "__main__":
     visualize_faiss_index(
-        index_file="../ArcFace_Large/evaluate/gallery_buffalo.index", 
-        map_file="../ArcFace_Large/evaluate/gallery_buffalo_map.json", 
-        output_image="../ArcFace_Large/evaluate/gallery_visualization_colored.png"
+        index_file=INDEX_FILE, 
+        map_file=MAP_FILE, 
+        output_image=OUTPUT_IMAGE
     )

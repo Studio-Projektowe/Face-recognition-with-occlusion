@@ -81,7 +81,7 @@ docker run --rm \
 
 The entrypoint script executes as follows:
 
-* Auth Setup: Writes KAGGLE_JSON_CONTENT to ~/.kaggle/kaggle.json and sets permissions.
-* Download: Uses kaggle datasets download --unzip to fetch data into temp_data/.
-* Upload: Executes gsutil -m cp -r to upload contents to gs://${BUCKET_NAME}/.
-* Cleanup: Removes temp_data and credentials to prevent data leakage in cached layers (though the container should be run with --rm).
+* Auth Setup: Writes KAGGLE_JSON_CONTENT to `~/.kaggle/kaggle.json` and sets permissions.
+* Download: Uses `kaggle datasets download --unzip` to fetch data into `temp_data/`.
+* Upload: Executes `gsutil -m cp -r` to upload contents to `gs://${BUCKET_NAME}/`.
+* Cleanup: Removes `temp_data` and credentials to prevent data leakage in cached layers (though the container should be run with `--rm`).
