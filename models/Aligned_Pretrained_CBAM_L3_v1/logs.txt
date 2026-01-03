@@ -1,0 +1,16 @@
+Wczytywanie wag z: ./Aligned_Pretrained_Aux_v2.pth
+--------------------------------------------------
+ SUKCES: Wczytano wagi CBAM (nie inicjalizujemy od zera!)
+--------------------------------------------------
+Konfiguracja mrożenia (Freeze 1-3, Unfreeze 4 + CBAM)...
+Liczba trenowalnych parametrów: 25,974,370
+ Start: Rank-1: 65.00% (Powinno być > 20% jeśli wczytano CBAM)
+ Epoka 1 | Loss: 13.0932 | Acc: 57.00%
+ Epoka 2 | Loss: 10.2700 | Acc: 63.00%
+ Epoka 3 | Loss: 9.6701 | Acc: 66.00%
+ Epoka 4 | Loss: 8.0169 | Acc: 66.00%
+ Epoka 5 | Loss: 7.4402 | Acc: 65.00%
+ Epoka 6 | Loss: 7.1140 | Acc: 66.00%
+ Wagi wczytane!
+ Odmrażanie wszystkich warstw...
+ START FAZY 2: FULL UNFREEZE

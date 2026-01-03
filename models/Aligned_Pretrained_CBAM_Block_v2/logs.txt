@@ -1,0 +1,43 @@
+Walidacja na 500 parach.
+Ładowanie Backbone'u z: ./Aligned_Pretrained_Aux_v2.pth
+ Załadowano 475 warstw backbone'u.
+ MROŻENIE BACKBONE'U NA 1. EPOKĘ...
+ START TRENINGU (Final Config)
+ Epoka 1 | Loss: 9.9404 | Avg Sim (500 par): 0.3113
+ Zapisano najlepszy model!
+ ODMRAŻANIE CAŁEGO MODELU...
+ Epoka 2 | Loss: 19.8108 | Avg Sim (500 par): 0.3328
+ Zapisano najlepszy model!
+ Epoka 3 | Loss: 15.8339 | Avg Sim (500 par): 0.3798
+ Zapisano najlepszy model!
+ Epoka 4 | Loss: 14.7265 | Avg Sim (500 par): 0.3834
+ Zapisano najlepszy model!
+ Epoka 5 | Loss: 14.2689 | Avg Sim (500 par): 0.3928
+ Zapisano najlepszy model!
+ Epoka 6 | Loss: 14.0250 | Avg Sim (500 par): 0.3802
+ Epoka 7 | Loss: 13.8959 | Avg Sim (500 par): 0.3715
+ Epoka 8 | Loss: 13.7959 | Avg Sim (500 par): 0.3664
+ Epoka 9 | Loss: 13.7230 | Avg Sim (500 par): 0.3891
+ Epoka 10 | Loss: 9.3648 | Avg Sim (500 par): 0.4290
+ Zapisano najlepszy model!
+ Epoka 11 | Loss: 8.0283 | Avg Sim (500 par): 0.4243
+ Epoka 12 | Loss: 7.9028 | Avg Sim (500 par): 0.4230
+ Epoka 13 | Loss: 7.7734 | Avg Sim (500 par): 0.4218
+ Epoka 14 | Loss: 7.5984 | Avg Sim (500 par): 0.4221
+ Epoka 15 | Loss: 7.4298 | Avg Sim (500 par): 0.4224
+ Epoka 16 | Loss: 7.2948 | Avg Sim (500 par): 0.4241
+ Epoka 17 | Loss: 7.1900 | Avg Sim (500 par): 0.4231
+ Epoka 18 | Loss: 7.1047 | Avg Sim (500 par): 0.4148
+ Epoka 19 | Loss: 7.0444 | Avg Sim (500 par): 0.4172
+ Epoka 20 | Loss: 5.0457 | Avg Sim (500 par): 0.4381
+ Zapisano najlepszy model!
+ Epoka 21 | Loss: 4.3028 | Avg Sim (500 par): 0.4313
+ Epoka 22 | Loss: 3.9080 | Avg Sim (500 par): 0.4291
+ Epoka 23 | Loss: 3.6104 | Avg Sim (500 par): 0.4230
+ Epoka 24 | Loss: 3.3604 | Avg Sim (500 par): 0.4172
+ Epoka 25 | Loss: 3.1422 | Avg Sim (500 par): 0.4150
+ Epoka 26 | Loss: 2.9541 | Avg Sim (500 par): 0.4074
+ Epoka 27 | Loss: 2.7903 | Avg Sim (500 par): 0.4049
+ Epoka 28 | Loss: 2.6528 | Avg Sim (500 par): 0.3981
+ Epoka 29 | Loss: 2.5336 | Avg Sim (500 par): 0.3961
+ Epoka 30 | Loss: 1.7432 | Avg Sim (500 par): 0.3884
