@@ -21,7 +21,6 @@ from config import (
     NUM_WORKERS
 )
 
-
 def initialize_services():
     """Ładuje model VGGFace i tworzy blokadę GPU."""
     
@@ -49,7 +48,6 @@ def initialize_services():
     gpu_lock = threading.Lock()
     print("Inicjalizacja zakończona pomyślnie.")
     return vgg_model, gpu_lock
-
 
 def preprocess_face_from_bbox(img, bbox, output_size=224, pad_ratio=0.2):
     """
@@ -96,7 +94,6 @@ def get_embedding(face_bgr, vgg_model, gpu_lock):
     except Exception as e:
         return None
 
-
 def discover_file_structure(local_test_path):
     print(f"Wykrywanie struktury plików w {local_test_path}...")
     search_pattern = os.path.join(local_test_path, "*", "*", "*.jpg")
@@ -132,7 +129,6 @@ def discover_file_structure(local_test_path):
 
     print(f"Wykryto {len(identity_to_imgfolders)} folderów tożsamości z parami JPG/JSON.")
     return identity_to_imgfolders, image_pairs
-
 
 def process_identity_for_gallery(args):
     id_path, identity_to_imgfolders, image_pairs, vgg_model, gpu_lock = args
@@ -179,7 +175,6 @@ def process_identity_for_gallery(args):
         
     return (identity_id, None)
 
-
 def build_faiss_gallery(vgg_model, gpu_lock, identity_to_imgfolders, image_pairs):
     print(f"--- ROZPOCZYNAM Budowanie Galerii FAISS (równolegle z {NUM_WORKERS} workerami) ---")
     
@@ -222,7 +217,6 @@ def build_faiss_gallery(vgg_model, gpu_lock, identity_to_imgfolders, image_pairs
         
     return True
 
-
 def apply_occlusion(image, landmarks_dict, bbox):
     """Nakłada pasek okluzji na pełne zdjęcie."""
     occluded_image = image.copy()
@@ -263,7 +257,6 @@ def process_occlusion_query(args):
     if (img is None or json_data is None or 
         "landmarks" not in json_data or "bbox" not in json_data):
         return None
-
     occluded_full_img = apply_occlusion(img, json_data["landmarks"], json_data["bbox"])
     
     try:
