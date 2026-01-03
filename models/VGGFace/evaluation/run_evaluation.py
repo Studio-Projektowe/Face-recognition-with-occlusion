@@ -136,7 +136,6 @@ def process_identity_for_gallery(args):
     identity_id = os.path.basename(id_path)
     image_folder_paths = sorted(list(identity_to_imgfolders[id_path]))
     
-    # Bierzemy pierwszą połowę folderów
     split_point = max(1, len(image_folder_paths) // 2)
     gallery_folders = image_folder_paths[:split_point]
     
@@ -260,7 +259,6 @@ def process_occlusion_query(args):
         return None
     occluded_full_img = apply_occlusion(img, json_data["landmarks"], json_data["bbox"])
     
-    # Opcjonalny zapis
     try:
         if random.random() < 0.01:
             original_filename = os.path.basename(local_img_path)

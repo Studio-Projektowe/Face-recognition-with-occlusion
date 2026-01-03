@@ -8,6 +8,7 @@
 .env
 venv
 .venv
+notes.md
 
 **/kaggle.json
 token.git.txt
@@ -20,3 +21,5 @@ webface_112x112
 
 *.pth
 *.onnx
+pytorch_models/
+pytorch_models.zip

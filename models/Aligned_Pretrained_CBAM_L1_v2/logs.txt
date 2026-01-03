@@ -1,0 +1,22 @@
+Inicjalizacja Datasetów (z Alignmentem)...
+Train Dataset: 442710 zdjęć.
+Szukanie par walidacyjnych...
+Verification Set: 200 par (Aligned).
+Budowanie modelu...
+Wczytywanie wag z: checkpoints_repair_v1/repaired_cbam_best.pth
+>>> Wykryto checkpoint RESUME (kontynuacja treningu). Ładuję 1:1...
+Wagi załadowane pomyślnie.
+
+ START NAPRAWY (Startowy Rank-1: sprawdzimy za chwilę...)
+ Stan zerowy (Random CBAM + Alignment) -> Rank-1 Accuracy: 18.50%
+ Epoka 1: Train Loss: 19.2244 |  Rank-1 Accuracy: 20.50%
+ Nowy rekord! Zapisano: checkpoints_repair/repaired_cbam_best.pth
+ Epoka 2: Train Loss: 17.5339 |  Rank-1 Accuracy: 22.00%
+ Nowy rekord! Zapisano: checkpoints_repair/repaired_cbam_best.pth
+ Epoka 3: Train Loss: 17.2802 |  Rank-1 Accuracy: 21.50%
+ Epoka 4: Train Loss: 16.1302 |  Rank-1 Accuracy: 23.00%
+ Nowy rekord! Zapisano: checkpoints_repair/repaired_cbam_best.pth
+ Epoka 5: Train Loss: 15.9676 |  Rank-1 Accuracy: 21.50%
+ Epoka 6: Train Loss: 15.8981 |  Rank-1 Accuracy: 21.50%
+ Epoka 7: Train Loss: 15.6861 |  Rank-1 Accuracy: 22.50%
+ Epoka 8: Train Loss: 15.6733 |  Rank-1 Accuracy: 21.50%

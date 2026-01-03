@@ -1,517 +1,473 @@
-# Projekt: Identyfikacja tożsamości po zdjęciu twarzy z okluzją
+# Face Recognition under Occlusion
 
-## Sformułowanie Problemu Badawczego (Cel Projektu)
+## 1. Project Overview
 
-### Definicja Problemu
+This project focuses on analyzing, implementing, and evaluating Deep Learning models for face recognition, with a specific emphasis on occlusion robustness.
 
-Głównym problemem badawczym jest identyfikacja tożsamości osób na podstawie zdjęć twarzy z częściową okluzją, ze szczególnym uwzględnieniem obszaru oczu (np. przez okulary, zasłonięcia w monitoringu, czy dynamicznie nakładany pasek). Chociaż standardowe algorytmy rozpoznawania twarzy (Face Recognition) osiągają wysoką skuteczność w warunkach idealnych, ich działanie drastycznie spada, gdy kluczowe cechy biometryczne, takie jak oczy, są częściowo zasłonięte.
+The primary objectives are:
 
-W kontekście systemów bezpieczeństwa, weryfikacji tożsamości (np. w telefonach) oraz monitoringu wizyjnego, jest to istotna luka, którą projekt ma za zadanie zminimalizować
+* Benchmark SOTA Models: Evaluate how current state-of-the-art models (ArcFace variants) handle occluded validation sets.
 
-### Cel Główny Projektu (Rozwiązanie)
+* Custom Architecture Design: Develop modified architectures based on IResNet50 utilizing CBAM (Convolutional Block Attention Module) and Auxiliary Loss functions to improve feature extraction in occluded scenarios.
 
-Celem jest zaprojektowanie, implementacja i porównanie efektywności dwóch metod uczenia maszynowego (Model A: Baseline vs. Model B: Modyfikacja autorska) do zadania identyfikacji osób, których twarz jest częściowo zasłonięta. Badamy, czy wprowadzenie modyfikacji architektoniczno-treningowych (Moduł Uwagi i Auxiliary Loss) poprawi odporność modelu ArcFace na okluzję w porównaniu do silnego baseline'u.
+* Retraining & Fine-tuning: Train models on the CASIA-WebFace dataset with specific augmentation and architectural changes.
 
-### Hipoteza badawcza
+### Analyzed Models
 
-Dodanie modułu uwagi oraz auxiliary loss do modelu ArcFace (Buffalo_L) zwiększy odporność systemu rozpoznawania twarzy na okluzję oczu i poprawi skuteczność identyfikacji 1:N w porównaniu z modelem bazowym fine-tuningowanym wyłącznie na danych z okluzją.
+Baseline SOTA Models:
 
-### Kluczowe Założenia Metodyczne
+* ArcFace_Large (based on IResNet50, source: InsightFace)
 
-Założenia te są fundamentalne dla Waszej metodyki ewaluacji (Identyfikacja 1:N)
+* ArcFace_Small  (based on MobileFaceNet equivalent)
 
-#### Zadanie: 
+* VGGFace (Legacy comparison, 2018)
 
-Projekt koncentruje się na identyfikacji tożsamości (czyli na pytaniu: "Kim jest ta osoba z okluzją?"), a nie tylko na weryfikacji (czyli na pytaniu: "Czy ta osoba jest osobą X?").
+Our Custom Implementations:
 
-#### Założenie o Galerii (Wiedza Bazowa): 
+* Aligned_Pretrained_Aux_v1 / v2 (Base IResNet with Auxiliary Loss)
 
-Przyjmuje się, że system ma dostęp do co najmniej jednego zdjęcia referencyjnego (galerii) każdej osoby, której tożsamość ma być rozpoznana, przy czym te zdjęcia referencyjne są wolne od okluzji.
+* Aligned_Pretrained_CBAM_Block_v1 / v2 (Integration of Attention Modules)
 
-#### Proces Ewaluacji (Testowanie):
+* Aligned_Pretrained_CBAM_L1_v1 / v2 (Attention applied at Layer 1)
 
-Model generuje wektory cech (embeddingi) na podstawie zdjęć referencyjnych bez okluzji i zapisuje je w galerii FAISS. Następnie, model generuje embeddingi dla zdjęć-zapytań z okluzją oczu i przeszukuje galerię FAISS, aby znaleźć 3 najbliższych sąsiadów i ustalić tożsamość.
+* Aligned_Pretrained_CBAM_L3_v0 / v1 / v2 (Attention applied at Layer 3)
 
-To podejście w pełni symuluje scenariusz, w którym np. użytkownik konfiguruje Face ID bez okularów, a system ma go rozpoznać, gdy później okulary założy.
+## 2. Dataset Preparation
 
-### Ważne wymagania
+We utilize the CASIA-WebFace dataset, comprising approximately 500,000 images across 10,575 identities.
 
-* Wejście modelu: zdjęcia twarzy w rozdzielczości 112×112.
+### Preprocessing Pipeline
 
-* Wyjście modelu: wektor embeddingowy o długości 512.
+All images undergo preprocessing using RetinaFace to detect 5-point facial landmarks (eyes, nose, mouth). This ensures consistent alignment before feeding data into the recognition network.
 
-* Dane treningowe: zbiór danych uporządkowany według ID osoby (klas).
+### Directory Structure
 
-* Każda tożsamość musi posiadać kilkanaście lub więcej zdjęć, najlepiej w różnych warunkach (pozycja, światło, mimika).
-
-* Zbiór nie może być zbyt mały — inaczej model nie nauczy się prawidłowo rozpoznawać twarzy.
-
-* Model bazowy: musi dać się załadować jako pełna architektura, tak aby można było wstawić dodatkową warstwę (np. moduł uwagi) i dalej trenować.
-
-* Model musi być załadowany w formie umożliwiającej modyfikację architektury (np. w PyTorch). Nie trenujemy od zera — wykorzystujemy Buffalo_S, Buffalo_L lub VGGFace jako backbone.
-
-* Preprocessing i wyrównanie twarzy (face alignment) muszą być identyczne jak w modelu bazowym — 5-punktowe landmarki + wycięcie do 112×112. Zmiana alignowania znacząco psuje jakość embeddingów.
-
-* Normalizacja wejścia (mean, std lub skala do [-1, 1]) musi być zgodna z oryginalnym trenowaniem ArcFace; inaczej embeddingi nie będą porównywalne.
-
-* Dodawany moduł uwagi musi działać wyłącznie wewnątrz sieci i nie może zmieniać rozmiaru końcowego embeddingu (512). W przeciwnym razie nie da się porównywać wyników i używać FAISS.
-
-* Trening musi odbywać się z bardzo niskim learning rate, aby nie uszkodzić wcześniej wyuczonych wag ArcFace (np. 1e-4 dla backbone i 1e-3 dla nowych warstw).
-
-* Okluzje muszą być nakładane losowo (różne pozycje, rozmiar, kształt, kolor), aby model uczył się odporności na różne typy zasłonięcia oczu.
-
-* Galeria (zdjęcia referencyjne bez okluzji) musi być odseparowana od zbioru testowego z okluzją. Żadne zdjęcie nie może pojawić się w obu zbiorach, aby uniknąć przecieków.
-
-* Metryka w FAISS musi być spójna (L2 lub cosine). Raz wybrana nie może być zmieniana w trakcie projektu.
-
-* Trenujemy tylko backbone i nowy moduł — nie trenujemy ArcFace Softmax, ponieważ nie mamy oryginalnych wag klasyfikatora z setkami tysięcy klas.
-
-## Ustalenia Wstępne
-
-Wybrany model bazowy: ArcFace Buffalo_L (IResNet-50).
-
-Framework: PyTorch – ze względu na większą elastyczność przy modyfikowaniu architektury (np. dodawanie modułu uwagi).
-
-Model A (Baseline): ArcFace Buffalo_L fine-tuned na naszym zbiorze danych, z losową okluzją nakładaną na oczy podczas treningu.
-
-Model B (Modyfikacja): Model A rozszerzony o Moduł Uwagi (Attention Module) oraz dodatkową stratę pomocniczą (Auxiliary Loss), mające zwiększyć odporność na okluzję.
-
-## Kroki (od końca)
-
-### 1. Napisanie raportu w LaTeX’ie
-
-Raport końcowy będzie zawierał:
-
-* kompletną dokumentację implementacji (architektura, kod, konfiguracje treningu),
-
-* przegląd literatury i obecnego stanu wiedzy na temat ArcFace, modeli ResNet/iResNet, mechanizmów uwagi oraz odporności na okluzję,
-
-* dokładnie określony cel i zakres projektu,
-
-* opis metodologii, zastosowanych modyfikacji, sposobu augmentacji (okluzji) i struktury zbioru danych,
-
-* szczegółową analizę wyników oraz porównanie testowanych metod,
-
-* omówienie ograniczeń projektu i interpretację rezultatów,
-
-* końcowe wnioski.
-
-W raporcie musi się znaleźć kilka alternatywnych podejść do rozwiązania problemu, wraz z jasnym wskazaniem, które z nich okazało się najlepsze oraz dlaczego.
-
-### 2. Ewaluacja końcowego modelu
-
-#### Architektura modelu
-
-* Model został zaimplementowany w PyTorch – framework ten umożliwia ingerencję w backbone (IResNet50 / Buffalo_L).
-
-* Jako model bazowy użyto Buffalo_L (IResNet50) z InsightFace.
-
-* Dodano mechanizm uwagi w końcowych częściach sieci (Stage 3 i Stage 4), ponieważ tam model przetwarza najbardziej abstrakcyjne cechy twarzy.
-
-* Dodano dodatkową funkcję straty Auxiliary Loss, której celem jest stabilizacja i dodatkowe wymuszenie separowalności embeddingów.
-
-* Ostatnia warstwa modelu to w pełni połączona warstwa (FC), która generuje embedding o wymiarze 512, zgodny z ArcFace.
-
-#### Proces treningu
-
-* Trening przeprowadzono na zbiorze danych uporządkowanym według tożsamości (train/val/test).
-
-* Wszystkie obrazy zostały wyrównane (aligned) do 112×112 zgodnie z procedurą używaną przez ArcFace (5-punktowe landmarki).
-
-* Normalizacja obrazów była identyczna jak w oryginalnym modelu Buffalo_L (np. skala [-1, 1]).
-
-* W trakcie treningu aplikowano losowe okluzje oczu (różne pozycje, szerokości, kolory i intensywność).
-
-* Trenowano wyłącznie backbone + moduł uwagi, nie trenowano softmaxa ArcFace (niewykorzystany w naszym zadaniu 1:N).
-
-* Learning rate był niski, np. LR_backbone = 1e-4, LR_attention = 1e-3.
-
-Ewaluacja metodą 1:N z użyciem FAISS
-
-* Model generuje embeddingi 512 dla wszystkich zdjęć bez okluzji i zapisuje je jako galerię (baza referencyjna).
-
-* embeddingi są przechowywane i indeksowane za pomocą FAISS (L2 lub cosine similarity – jedna metryka konsekwentnie).
-
-* Dla zdjęć z okluzją:
-
-    * model oblicza embedding,
-
-    * FAISS zwraca 3 najbliższych sąsiadów z galerii,
-
-    * podobieństwa są interpretowane jako dopasowanie do tożsamości.
-
-Wyniki otrzymujemy w formie np.:
-
-Obraz A → najbardziej podobny do osoby A (0.70), dalej B (0.10), C (0.05).
-
-#### Wizualizacja
-
-Embeddingi zostaną przedstawione w 2D za pomocą t-SNE lub UMAP, aby pokazać separowalność klas oraz wpływ okluzji.
-
-#### Ewaluacja ilościowa (metryki)
-
-Do oceny jakości rozpoznawania zastosujemy m.in.:
-
-* Top-1 Accuracy / Top-3 Accuracy – skuteczność identyfikacji 1:N.
-
-* TAR @ FAR=0.1% – True Accept Rate przy niskim False Accept Rate.
-
-* EER (Equal Error Rate) – punkt, w którym błędy FA i FR są równe.
-
-* ROC-AUC – pole pod krzywą ROC dla par pozytywne/negatywne.
-
-* CMC curve (Cumulative Match Curve) – standard dla identyfikacji twarzy.
-
-### 3. Modyfikacja modelu (Model B)
-
-Mechanizm uwagi zostanie dodany do Stage 3 i Stage 4 IResNet-50.
-W tych warstwach sieć uczy się najbardziej semantycznych cech twarzy, dlatego uwaga jest tu najbardziej efektywna.
-
-Auxiliary Loss zostanie użyta jako dodatkowa funkcja straty, wspierającą właściwą separację embeddingów i stabilizację treningu.
-
-### 4. Trening modelu bazowego (Model A – czysty Buffalo_L)
-
-Zanim zostanie wprowadzona jakakolwiek modyfikacja, należy wytrenować czysty model Buffalo_L (IResNet50) na naszym zbiorze danych, aby:
-
-* uzyskać baseline, do którego porównamy Model B,
-
-* sprawdzić, jak sam backbone radzi sobie z okluzją oczu po fine-tuningu,
-
-* ocenić wpływ dodawanego modułu uwagi.
-
-#### Szczegóły treningu Modelu A
-
-* Korzystamy z oryginalnej architektury Buffalo_L z InsightFace (PyTorch).
-
-* Nie zmieniamy żadnych warstw.
-
-* Trenujemy tylko backbone (embedding 512), nie trenujemy softmaxa ArcFace.
-
-* Preprocessing, normalizacja i alignment są identyczne jak w oryginale.
-
-* Używamy tej samej augmentacji okluzji, co później w Modelu B.
-
-* Learning rate niski: ok. 1e-4.
-
-* Strata: ArcFace Loss (w wersji do fine-tuningu embeddingu), ewentualnie prosty Triplet/Contrastive Loss.
-
-### 5. Ewaluacja modelu bazowego (Model A)
-
-Model A musi zostać oceniony przed modyfikacjami, aby stanowił punkt odniesienia.
-
-Sposób ewaluacji (taki sam jak w Modelu B)
-
-* Generujemy embeddingi 512 dla zdjęć bez okluzji → budujemy galerię FAISS.
-
-* Dla obrazów z okluzją generujemy embeddingi i szukamy k-najbliższych sąsiadów (k=3).
-
-* Otrzymujemy ranking tożsamości na podstawie podobieństwa kosinusowego lub L2.
-
-Metryki dla Modelu A
-
-* Top-1 / Top-3 Accuracy.
-
-* TAR @ FAR=0.1%.
-
-* EER.
-
-* ROC-AUC.
-
-* CMC curve.
-
-#### Wizualizacja embeddingów (t-SNE/UMAP).
-
-Cel ewaluacji Modelu A
-
-* Ustalić wyjściową jakość systemu bez mechanizmu uwagi.
-
-* Sprawdzić, jak okluzja wpływa na czysty Buffalo_L.
-
-* Stworzyć punkt odniesienia, który Model B powinien poprawić.
-
-### 6. Ewaluacja modeli pre-trained
-
-Cele:
-
-* Sprawdzić działanie dostępnych modeli Buffalo_L, Buffalo_S i VGGFace przed fine-tuningiem.
-
-* Porównać ich baseline’ową skuteczność na naszym zbiorze testowym z okluzją i bez okluzji.
-
-* Upewnić się, że modele generują embeddingi 512-d (Buffalo_L i Buffalo_S) lub zgodne z VGGFace (często 4096-d, można dostosować FC do 512-d dla spójności).
-
-Proces:
-
-* Załaduj pre-trained model w PyTorch (architektura + wagi).
-
-* Zastosuj identyczny preprocessing i face alignment jak w treningu.
-
-* Przetestuj model na zbiorze testowym, generując embeddingi.
-
-* Dokonaj wstępnej ewaluacji z użyciem FAISS (Top-1, Top-3, TAR@FAR, EER, CMC).
-
-* Zapisz wyniki dla porównania z późniejszym fine-tuningiem.
-
-Ważne punkty:
-
-* Upewnij się, że wagi pochodzą z PyTorch. InsightFace w repozytorium często daje PaddlePaddle / ONNX, więc mogą wymagać konwersji do PyTorch.
-
-* Wymiar embeddingu musi być identyczny z tym, który będzie użyty w późniejszym fine-tuningu (512-d dla Buffalo_L/S).
-
-* Sprawdź, czy model obsługuje te same kanały wejściowe i normalizację obrazów (mean/std lub [-1,1]).
-
-### 7. Załadowanie modeli (architektura + wagi)
-
-Cele:
-
-* Przygotować model bazowy identyczny z tym, który będzie trenowany (fine-tuning Buffalo_L i modyfikacje Model B).
-
-* Upewnić się, że zarówno architektura, jak i wagi są poprawnie załadowane.
-
-Proces:
-
-* Wybierz framework: PyTorch (ze względu na łatwość wstawiania mechanizmów uwagi).
-
-* Załaduj architekturę modelu (np. Buffalo_L → IResNet50).
-
-* Załaduj pre-trained wagi. Upewnij się, że:
-
-* wagi odpowiadają wersji architektury,
-
-* layer names pasują do modelu w PyTorch (czasem trzeba konwersji z Paddle/ONNX),
-
-* embedding FC layer ma właściwy wymiar (512-d).
-
-* Zablokuj lub “freeze” warstwy, których nie chcemy trenować od początku (np. wstępny backbone).
-
-* Sprawdź poprawność działania: podaj kilka testowych zdjęć, upewnij się, że embeddingi są w oczekiwanym zakresie.
-
-Ważne punkty:
-
-* Normalizacja i alignment muszą być identyczne jak podczas pre-treningu.
-
-* Jeśli w przyszłości dodajesz moduł uwagi, upewnij się, że nie zmienia wymiaru embeddingu.
-
-* Każdy model (Buffalo_L, Buffalo_S, VGGFace) powinien być traktowany spójnie: te same preprocessing, face alignment i metryki.
-
-* Zapisz stan modeli (architektura + wagi) po sprawdzeniu – będzie to punkt odniesienia dla późniejszego fine-tuningu i eksperymentów.
-
-### 8. Przygotowanie funkcji do nakładania okluzji
-
-Cel:
-
-Tworzymy funkcję, która nakłada losowe okluzje na oczy (lub inne wybrane części twarzy) na obrazy, korzystając z zapisanych landmarków twarzy w pliku JSON.
-
-Wymagania techniczne:
-
-Funkcja powinna przyjmować:
-
-* obraz twarzy,
-
-* współrzędne landmarków (oczy, nos, usta itp.),
-
-* parametry okluzji (szerokość, wysokość, kolor, przepuszczalność).
-
-* Okluzja powinna być losowa w obrębie zadanego regionu:
-
-* różna pozycja w obrębie oczu,
-
-* różna szerokość i wysokość,
-
-* różna przepuszczalność / intensywność / kolor.
-
-* Zachowaj oryginalny rozmiar obrazu 112×112 i poprawnie wyrównaj twarz.
-
-* Można użyć bibliotek: OpenCV, Pillow, Albumentations.
-
-Funkcja powinna zwracać zarówno obraz zmodyfikowany, jak i oryginalny (dla porównań).
-
-Użycie:
-
-Funkcja będzie stosowana zarówno w czasie treningu (augmentacja) jak i przy ewaluacji (symulacja okluzji w zbiorze testowym).
-
-### 9. Przygotowanie skryptów ewaluacyjnych
-
-Cel:
-
-Zanim załadujemy i fine-tunujemy modele, musimy mieć skrypty ewaluacyjne, aby sprawdzić:
-
-* poprawność załadowanych modeli,
-
-* baseline’ową skuteczność pre-trained modeli,
-
-* spójność embeddingów i metryk.
-
-Wymagania techniczne:
-
-* Skrypt powinien przyjmować model w PyTorch i zbiór testowy (obraz + ID osoby).
-
-* Musi generować embeddingi 512-d (dla Buffalo_L/S) lub odpowiednio dopasowane dla VGGFace.
-
-Ewaluacja z użyciem FAISS:
-
-* zbudowanie galerii embeddingów dla zdjęć bez okluzji,
-
-* porównanie z embeddingami zdjęć z okluzją,
-
-* wyznaczenie Top-1, Top-3 Accuracy, TAR@FAR, EER, CMC.
-
-Wizualizacja embeddingów w 2D (t-SNE lub UMAP).
-
-* Obsługa różnych metryk odległości: cosine similarity lub L2, konsekwentnie w całym pipeline.
-
-* Skrypt powinien działać dla wszystkich pre-trained modeli: Buffalo_L, Buffalo_S, VGGFace.
-
-Wynik:
-
-Zestaw baseline’owych metryk i wizualizacji dla modeli pre-trained, które posłużą jako punkt odniesienia przed fine-tuningiem.
-
-### 10. Podział zbioru danych i przygotowanie struktur katalogów
-
-Cel:
-
-Przygotować dane do treningu, walidacji i testów w sposób spójny z wymaganiami projektu, tak aby każda tożsamość była reprezentowana w odpowiednim podziale i każdy obraz miał przypisane landmarki.
-
-#### Proces:
-
-1. Podział według tożsamości:
-
-Cały zbiór danych dzielimy w stosunku 80% train / 10% validation / 10% test.
-
-Ważne: wszystkie zdjęcia jednej osoby trafiają do jednego podzbioru — brak przecieków między train/val/test.
-
-Struktura folderów:
+The dataset is organized into Train, Validation, and Test splits. Each image corresponds to a JSON file containing bounding box and landmark coordinates.
 
 ```
 webface_112x112/
-  train/
-    id_001/
-        001/
-            001.jpg
-            001.json
-        002/
-            002.jpg
-            002.json
-    id_002/
-      ...
-  val/
-    id_010/
-      ...
-  test/
-    id_020/
-      ...
+├── train/
+│   ├── id_001/
+│   │   ├── 001/
+│   │   │   ├── 001.jpg
+│   │   │   └── 001.json
+│   │   └── 002/
+│   │       ├── 002.jpg
+│   │       └── 002.json
+│   └── id_002/
+│       └── ...
+├── val/
+│   └── id_010/
+│       └── ...
+└── test/
+    └── id_020/
+        └── ...
 ```
 
-2. Parowanie zdjęć z landmarkami:
+### Data Format:
 
-Każde zdjęcie twarzy ma odpowiadający plik JSON z 5-punktowymi landmarkami (oczy, nos, usta).
+* Images: .jpg (aligned/cropped to 112x112)
 
-Pliki JSON muszą być identycznie nazwane jak obrazy (img_001.jpg ↔ img_001.json).
+* Metadata: .json (contains landmarks and bbox)
 
-3. Sprawdzenie poprawności:
+* Naming Convention: img_name.jpg $\leftrightarrow$ img_name.json
 
-Wszystkie pliki obrazu mają odpowiadające landmarki.
+## 3. Methodology & Baseline Setup
 
-Brak brakujących lub nadmiarowych plików.
+### Backbone Architecture
 
-Rozmiar obrazów dopasowany do wymagań modelu (112×112).
+We selected IResNet50 as our baseline backbone due to its performance in the buffalo_l model (ArcFace Large) from the InsightFace project.
 
-#### Ważne punkty:
+### Weight Initialization Strategy
 
-Podział wg tożsamości zapewnia, że model nie “widzi” tej samej osoby w train i test.
+To accelerate training, we attempted to transfer weights from the pre-trained buffalo_l ONNX model to our PyTorch implementation. Due to architectural differences between the ONNX export and the dynamic PyTorch graph, a Partial Weight Transfer strategy was employed.
 
-Zachowanie struktury folderów ułatwia automatyczne ładowanie danych w PyTorch Dataset i aplikowanie augmentacji (np. losowych okluzji).
+### Initialization Protocol:
 
-Możliwość łatwego generowania batchy train/val/test z przypisanymi landmarkami.
+1. Matched Layers: Weights were successfully loaded for the majority of the ResNet blocks.
 
-### 11. Pobranie i wstępne przetworzenie datasetu
+2. Unmatched Layers: 26 specific layers (primarily BatchNorm and PReLU instances inside specific blocks) could not be mapped 1:1. These layers were re-initialized using Kaiming Normal (He initialization).
 
-Cel:
+<details>
+<summary><strong>Click to expand: List of Re-initialized Layers</strong></summary>
 
-Przygotować dane wejściowe do projektu, pobierając wybrany dataset CASIA-WebFace w rozdzielczości 112×112 i przetwarzając je w sposób spójny z wymaganiami modelu (detekcja twarzy + zapis landmarków).
+The following layers were reset to random weights and trained from scratch:
 
-#### Proces:
+Layer 1: layer1.2.bn3 (bias, running_mean, running_var, weight)
 
-1. Pobranie danych:
+Layer 2: layer2.3.bn2 (running_var), layer2.3.bn3 (all params), layer2.3.prelu
 
-Dataset CASIA-WebFace dostępny na Kaggle lub w repozytoriach akademickich.
+Layer 3: layer3.12.bn2 (stats), layer3.12.bn3 (all params), layer3.12.prelu
 
-Wybrać wersję już przyciętą do 112×112, jeśli dostępna; jeśli nie, przyciąć obrazy ręcznie lub skryptem.
+Layer 3 (cont.): layer3.13.bn2 (all params), layer3.13.bn3 (all params), layer3.13.prelu
 
-2. Detekcja i wyrównanie twarzy:
+</details>
 
-Użyć RetinaFace (lub innego sprawdzonego detektora z InsightFace).
+This hybrid initialization forces the model to re-learn batch statistics and activation thresholds during the first epoch, acting as a "warm-up" phase for the re-initialized blocks.
 
-Dla każdego obrazu wykryć twarz i 5-punktowe landmarki (oczy, nos, usta).
+### 3.3. Evaluation Protocol (Identification Task)
 
-Wyrównać twarz do standardowego rozmiaru 112×112.
+To rigorously assess the performance of our models in a real-world identification scenario, we implemented a retrieval-based benchmark using FAISS (Facebook AI Similarity Search).
 
-3. Zapis wyników:
+#### Test Set Split:
 
-Każde przetworzone zdjęcie zapisać w folderze datasetu.
+* Gallery Set: Comprises "clean" (non-occluded) images from the Test split. We aggregate embeddings for each identity to create a robust class prototype.
 
-Dla każdego obrazu wygenerować odpowiadający plik .json z landmarkami.
+* Probe Set: Comprises images from the Test split that are subjected to synthetic occlusion.
 
-img_001.jpg
-img_001.json
+#### Evaluation Workflow:
 
+1. Embedding Extraction: The model extracts a 512-dimensional feature vector for every image in both sets.
 
-4. Sprawdzenie poprawności:
+2. Occlusion Simulation: A 20px height black bar is digitally applied to the eye region of the Probe images based on landmark coordinates.
 
-Każdy obraz ma odpowiadający plik JSON.
+3. Similarity Search: For each Probe image, we perform a $k$-Nearest Neighbors search ($k=3$) against the Gallery index using Cosine Similarity.
 
-Brak brakujących danych lub błędów w detekcji twarzy.
+4. Metrics:
 
-Wszystkie obrazy są w rozmiarze 112×112 i gotowe do podziału na train/val/test.
+* Rank-1 Accuracy: Success if the top match corresponds to the correct identity.
 
-#### Ważne punkty:
+* Rank-3 Accuracy: Success if the correct identity appears within the top 3 matches.
 
-* Detekcja twarzy i wyrównanie muszą być identyczne dla wszystkich danych, aby embeddingi z modelu były spójne.
+## 4. SOTA Baselines Evaluation
 
-* Ten krok przygotowuje dane do kolejnego kroku 10 (podział na train/val/test i parowanie z landmarkami).
+Before developing our custom architectures, we evaluated existing State-of-the-Art (SOTA) solutions to establish a performance "Upper Bound". This benchmark helps contextualize our results against industry-standard models trained on massive datasets.
 
-* Przygotowanie danych w tym kroku pozwala na łatwe stosowanie augmentacji, np. losowej okluzji podczas treningu.
+### 4.1. Evaluated Models
 
-### 12. Przygotowanie środowiska w GCP z Vertex AI
+We tested the following pre-trained models using the InsightFace library:
 
-Cel:
+ArcFace Large (buffalo_l): A heavy-weight model (ResNet50-based) optimized for high accuracy.
 
-Stworzyć stabilne środowisko do trenowania i ewaluacji modeli z GPU oraz zapewnić łatwy dostęp do datasetu i wyników.
+ArcFace Small (buffalo_s): A lightweight model optimized for speed.
 
-#### Proces:
+VGGFace: A legacy model for historical comparison.
 
-* Utworzenie projektu w Google Cloud Platform (GCP).
+### 4.2. Benchmark Results (ArcFace Large)
 
-* Vertex AI Workbench / Notebooks:
+We subjected the SOTA models to the exact same occlusion protocol as our custom models (Probe set with 20px eye occlusion).
 
-* Utworzyć instancję VM w Vertex AI z GPU (np. NVIDIA Tesla T4, A100, V100).
+Baseline Model | Rank-1 Accuracy | Rank-3 Accuracy |
+---------------| --------------- | ----------------|
+ArcFace Large (buffalo_l) | 94.81% | 95.51% |
+ArcFace Small (buffalo_s) | 86.65% | 90.68% |
+VGGFace (ResNet50) | 39.64% | 57.01% |
 
-* GPU umożliwia wykorzystanie PyTorch z akceleracją CUDA do trenowania modeli głębokiego uczenia.
+Observations:
 
-Dysk współdzielony (Persistent Disk / Filestore):
+ArcFace Large sets a very high "Upper Bound" (94.81%), likely due to its massive pre-training dataset (MS1MV2 with ~5.8M images) and deeper architecture.
 
-* Podłączyć dysk do VM, na którym będzie przechowywany dataset oraz wyniki treningu.
+ArcFace Small achieves 86.65%. Notably, our best custom model (Model I) achieves 90.16%, effectively surpassing this lightweight industry standard by a significant margin (+3.51%). This proves that domain-specific fine-tuning with attention mechanisms can outperform generic SOTA models on occlusion tasks.
 
-* Dysk musi mieć wystarczającą pojemność na cały dataset (CASIA-WebFace ~ 1–2 GB przy 112×112), wagi modeli, pliki JSON z landmarkami oraz wyniki eksperymentów.
+VGGFace (2015/2018) shows significant degradation under occlusion (39.64%), highlighting the advancements made by modern margin-based loss functions (ArcFace) compared to older softmax-based approaches.
 
-Konfiguracja środowiska:
+## 5. Proposed Architectures (Research Track)
 
-* Zainstalować Python 3.9+, PyTorch z obsługą CUDA, FAISS, OpenCV, Albumentations i inne potrzebne biblioteki (InsightFace, tqdm, pandas, scikit-learn itp.).
+### 5.1. Model A: Aligned_Pretrained_Aux_v1
 
-Sprawdzić, czy GPU jest dostępne w PyTorch:
+This model represents our first approach to robust feature extraction using Multi-Task Learning (MTL).
 
-```python
-import torch
-print(torch.cuda.is_available())
-print(torch.cuda.get_device_name(0))
-```
+Architecture Design:
+We extended the standard IResNet50 backbone with a lightweight auxiliary head.
 
-Upewnić się, że wszystkie pakiety i sterowniki GPU są kompatybilne.
+Primary Branch: Standard ArcFace projection (512-dim embedding) for identity classification.
 
-Ważne punkty:
+Auxiliary Branch: A Multi-Layer Perceptron (MLP) composed of Linear(512, 256) -> ReLU -> Linear(256, 49) -> Sigmoid.
 
-* Wszystkie eksperymenty będą wykonywane na tej samej VM, aby zapewnić spójność wyników.
+Objective: The aux head predicts a $7 \times 7$ grid mask representing the spatial location of the occlusion. This forces the shared feature extractor to be "aware" of which parts of the face are missing.
 
-* Dysk współdzielony umożliwia łatwy dostęp do datasetu i zapis wyników między restartami VM.
+Training Configuration:
 
-* GPU pozwala na znacznie szybsze trenowanie modeli deep learningowych w PyTorch.
+* Loss Function: $L_{total} = L_{ArcFace} + \lambda L_{MSE}$, where $\lambda=0.01$.
 
+* Augmentation: Online synthetic occlusion with $P=0.7$, utilizing random colored bars (height: 20px).
+
+* Freezing Strategy: To preserve the transferred low-level features, we froze layer1 and layer2. We fine-tuned the deeper semantic layers (layer3, layer4) along with all Batch Normalization and PReLU parameters.
+
+* Optimization: SGD (momentum=0.9) with ReduceLROnPlateau. LR_Backbone=5e-4, LR_Head=0.01.
+
+Results (25 Epochs):
+The model was trained for 25 epochs. The learning curve shows consistent convergence without signs of overfitting, despite the high occlusion probability.
+
+* Initial Loss (Val): ~20.22
+
+* Final Loss (Val): ~10.72
+
+Evaluation Protocol & Test Results:
+We performed an identification test on the held-out Test split using FAISS for similarity search ($k$-NN).
+
+Protocol: The test set was split into a Gallery (clean images) and a Probe set (synthetically occluded images).
+
+Occlusion Type: A 20px height black bar applied to the eye region (based on landmarks).
+
+Total Queries: 24,227
+
+Metric | Accuracy | Count (Correct/Total) |
+-------|----------|-----------------------|
+Rank-1 Accuracy | 77.81% | 18,851 / 24,227 |
+Rank-3 Accuracy | 84.05% | 20,362 / 24,227 |
+
+Observation: The model demonstrates strong baseline capabilities in handling severe eye occlusion, validating the effectiveness of the auxiliary loss strategy.
+
+### 5.2. Model B: Aligned_Pretrained_Aux_v2 (Sequential Fine-Tuning)
+
+Building upon the features learned in v1, this model utilizes a Sequential Transfer Learning strategy to refine the feature space.
+
+Architecture Design:
+Identical to v1, but initialized with the weights from the best Aligned_Pretrained_Aux_v1 checkpoint.
+
+Training Configuration:
+
+Unfreezing: Unlike v1, we unfroze the entire backbone (including Layer 1 and Layer 2). This allows the lower-level features (edge/texture detectors) to adapt specifically to the occlusion patterns and the auxiliary task.
+
+Hyperparameter Adjustment:
+
+Low Learning Rate: LR_Backbone was reduced to 1e-5 (vs 5e-4 in v1) to prevent "catastrophic forgetting" of the stable features learned in the previous stage.
+
+Increased Aux Weight: AUX_LOSS_WEIGHT was increased to 0.1 (vs 0.01 in v1). Since the backbone is already stable, we placed stronger emphasis on the mask prediction task to enforce spatial awareness.
+
+Optimization: Trained for 20 epochs with Early Stopping.
+
+Results (20 Epochs):
+The fine-tuning process resulted in a significant reduction in validation loss compared to v1, indicating improved generalization.
+
+Initial Loss (Val): ~12.35 (Starting point from v1)
+
+Final Loss (Val): ~8.58
+
+Total Queries: 24,227
+
+Test Results (Occluded Probe):
+Using the identical evaluation protocol (20px Eye Occlusion):
+
+Metric | Accuracy | Count (Correct/Total) | Delta (vs v1) |
+-------|----------|-----------------------|---------------|
+Rank-1 Accuracy | 78.52% | 19,023 / 24,227 | + 0.71% |
+Rank-3 Accuracy | 84.60% | 20,497 / 24,227 | + 0.55% |
+
+Observation: Unfreezing the backbone allowed the model to fine-tune its low-level feature extractors (Gabor-like filters in early layers) to be less sensitive to the sharp edges of the occlusion masks. The improvement confirms that full-network fine-tuning with a low learning rate is superior to partial freezing.
+
+### 5.3. Model C: Aligned_Pretrained_CBAM_L1_v1 (Modular Adaptation)
+
+In this iteration, we hypothesized that adding a Channel and Spatial Attention Mechanism (CBAM) at the very beginning of the network (Front-End) could "clean" the occluded input signal before it reaches the backbone.
+
+Architecture Design:
+
+Base: Aligned_Pretrained_Aux_v2.
+
+Modification: Inserted a CBAM block immediately after the initial convolution, before layer1.
+
+Training Configuration:
+
+Strategy: "Frozen Backbone Adaptation". We froze all layers of the pre-trained backbone and trained only the newly inserted CBAM module and Batch Normalization layers.
+
+Rationale: We aimed to see if the attention module alone could adapt to occlusion without altering the deep feature extractors.
+
+Optimization: High LR (0.01) for the CBAM module to encourage rapid adaptation.
+
+Test Results (Occluded Probe):
+Evaluation revealed a significant performance degradation compared to the baseline v2 model.
+
+Metric | Accuracy | Delta (vs v2) |
+-------|----------|---------------|
+Rank-1 Accuracy | 38.82% | -39.70% |
+Rank-3 Accuracy | 51.28% | -33.32% |
+
+Observation: The drastic drop in accuracy indicates that inserting a randomly initialized module at the front of a frozen, pre-trained network disrupts the input statistics (feature distribution) that the backbone expects. While the model improved from ~1.5% to ~38% during training, it could not recover the baseline performance without end-to-end fine-tuning. This confirms that attention modules cannot be simply "plugged in" to frozen networks; they require co-adaptation.
+
+### 5.4. Model D: Aligned_Pretrained_CBAM_L1_v2 (Extended Training)
+
+To verify if the poor performance of Model C was due to underfitting (insufficient convergence of the attention module), we extended the training process.
+
+Architecture Design:
+Identical to v1 (CBAM at Front-End + Frozen Backbone).
+
+Training Configuration:
+
+Initialization: Resumed from the best checkpoint of Aligned_Pretrained_CBAM_L1_v1 (starting accuracy ~38%).
+
+Strategy: Continued training for 30 epochs with the backbone remaining frozen.
+
+Test Results (Occluded Probe):
+While performance improved slightly, it reached a saturation point far below the baseline.
+
+Metric | Accuracy | Delta (vs v1) | Delta (vs Baseline v2) |
+-------|----------|---------------|------------------------|
+Rank-1 Accuracy | 43.76% | +4.94% |-34.76% |
+Rank-3 Accuracy | 55.72% | +4.44% | -28.88% |
+
+Observation: The plateau in accuracy confirms that the issue is structural, not temporal. A frozen backbone trained on "standard" faces cannot effectively process the modified feature map produced by a front-end attention module. The CBAM module essentially introduces a "covariate shift" that the subsequent frozen layers treat as noise.
+
+### 5.5. Model E: Aligned_Pretrained_CBAM_L3_v0 (Deep Feature Attention)
+
+Based on the failures of the Front-End attention models (C and D), we hypothesized that the attention mechanism might be more effective if applied to high-level semantic features rather than low-level input features.
+
+Architecture Design:
+
+Base: Initialized with weights from Aligned_Pretrained_Aux_v2.
+
+Modification: A CBAM block was inserted deep in the network, specifically after layer3 and before layer4.
+
+Training Configuration:
+
+Selective Freezing: We employed a "Partial Unfreezing" strategy.
+
+Frozen: layer1, layer2 (Low-level feature extractors).
+
+Trainable: layer3, CBAM, layer4, and the classifier head.
+
+Rationale: By keeping the early layers frozen, we preserve the basic edge/texture detection capabilities. By unfreezing the deeper layers, we allow the network to adapt its semantic understanding to utilize the new attention maps produced by the inserted CBAM block.
+
+Test Results (Occluded Probe):
+Moving the attention module deeper yielded significantly better results than the Front-End approach, though still below the non-attention baseline.
+
+Metric | Accuracy | Delta (vs L1_v2)| Delta (vs Baseline v2)|
+-------|----------|---------------|------------------------|
+Rank-1 Accuracy | 57.47% | +13.71% |-21.05% |
+Rank-3 Accuracy | 66.58% | +10.86% | -18.02% |
+
+Observation: The substantial improvement over the L1 models (+13.71%) suggests that semantic features are more robust to structural modification. The network can better tolerate (and potentially benefit from) attention re-weighting when it occurs at a stage where it processes abstract concepts (like "nose shape") rather than raw pixels. However, the drop compared to the baseline implies that the inserted layer still creates a bottleneck or misalignment that the partial fine-tuning has not fully resolved.
+
+### 5.6. Model F: Aligned_Pretrained_CBAM_L3_v1 (The Breakthrough)
+
+This experiment combined the Deep Attention architecture (Model E) with the Full Fine-Tuning strategy (Model B).
+
+Architecture Design:
+
+Base: Aligned_Pretrained_CBAM_L3_v0 (The "Mid-Level Attention" model).
+
+Placement: CBAM between layer3 and layer4.
+
+Training Configuration:
+
+Phase 2 - Full Unfreeze: All layers of the backbone (L1-L4) and the CBAM module were unfrozen.
+
+Initialization: Loaded weights from the best checkpoint of L3_v0 (starting accuracy ~65%).
+
+Hypothesis: By allowing the entire network (including early layers) to adjust to the presence of the deep attention module, the network can align its low-level feature extraction to maximize the benefit of the semantic attention.
+
+Test Results (Occluded Probe):
+This configuration yielded the best results of the entire project, outperforming the non-attention baseline.
+
+Metric | Accuracy | Delta (vs Baseline v2)|
+-------|----------|---------------|
+Rank-1 Accuracy | 81.77% | +3.25% |
+Rank-3 Accuracy |86.24% | +1.64% |
+
+Conclusion: The attention mechanism (CBAM) is highly effective for occlusion robustness, provided two conditions are met:
+
+Deep Placement: It must be placed at a high semantic level (after Layer 3).
+
+Co-Adaptation: The entire network must be fine-tuned end-to-end to accommodate the modification. Merely inserting the module into a frozen or partially frozen network is insufficient.
+
+### 5.7. Model G: Aligned_Pretrained_CBAM_L3_v2 (Differential Learning Rates)
+
+This experiment aimed to squeeze maximum performance from the architecture by applying Differential Learning Rates (DLR) during the full fine-tuning phase.
+
+Architecture Design:
+
+Base: Aligned_Pretrained_CBAM_L3_v1.
+
+Modification: None (Architecture remains IResNet50 + CBAM @ L3).
+
+Training Configuration:
+
+Initialization: Resumed from the best checkpoint of the previous model (v1).
+
+Strategy: Full Network Unfreeze with DLR.
+
+Backbone (Layers 1-3): LR = 1e-3 (Conservative updates to preserve extracted features).
+
+High-Level Features (CBAM + Layer 4 + Head): LR = 1e-2 (Aggressive updates to adapt the attention mechanism and classifier).
+
+Rationale: This allows the deep semantic layers to adapt quickly to the attention modulation while preventing catastrophic forgetting in the earlier layers.
+
+Test Results (Occluded Probe):
+
+Metric | Accuracy | Delta (vs Baseline v2)| Delta (vs L3 v1)|
+-------|----------|---------------|------------------------|
+Rank-1 Accuracy | 86.55% | +8.03% | +4.78% |
+Rank-3 Accuracy | 89.55% | +4.95% | +3.31% |
+
+Conclusion: The combination of Deep Attention Placement and Differential Fine-Tuning proved to be the optimal strategy. The model not only recovered the performance lost by architectural modification but significantly surpassed the original non-attention baseline, demonstrating that the attention mechanism effectively learns to "look around" the occlusion.
+
+### 5.8. Model H: Aligned_Pretrained_CBAM_Block_v1 (Integrated Attention)
+
+In our final experiment, we tested whether "Distributed Attention" is superior to "Bottleneck Attention". Instead of a single CBAM module, we integrated the attention mechanism directly into every Residual Block of the IResNet architecture.
+
+Architecture Design:
+
+Mechanism: Inside each CBAMBasicBlock, the attention module refines the feature maps of the convolutional path before they are added to the residual identity connection.
+
+Scale: This provides granular, hierarchical attention at every depth of the network, allowing the model to suppress noise (occlusion) locally at early stages and semantically at deeper stages.
+
+Training Configuration:
+
+Initialization: Weights transferred from Aligned_Pretrained_Aux_v2 (matched layers loaded, new intra-block CBAM layers initialized randomly).
+
+Phased Training: 1.  Warm-up: Frozen backbone weights, training only the new CBAM modules.
+2.  Fine-tuning: Full network unfreeze to co-adapt convolutions with attention maps.
+
+Test Results (Occluded Probe):
+This granular, distributed attention strategy yielded the absolute highest performance in our research.
+
+Metric | Accuracy | Delta (vs L3_v2)| Delta (vs Baseline v2)|
+-------|----------|---------------|------------------------|
+Rank-1 Accuracy | 87.58% | +1.03% | +9.06% |
+Rank-3 Accuracy | 90.10% | +0.55% | +5.50% |
+
+Conclusion: Distributed attention outperforms single-point insertion. By allowing the network to "clean" the signal at every step of the transformation, the model builds a representation that is intrinsically robust to occlusion, rather than trying to fix the features at a single bottleneck.
+
+### 5.9. Model I: Aligned_Pretrained_CBAM_Block_v2 (Aggressive Fine-Tuning)
+
+Building on the architectural success of Model H, we explored the impact of hyperparameter optimization, specifically focusing on a High Learning Rate (Aggressive) Fine-Tuning strategy.
+
+Architecture Design:
+Identical to Model H (IResNet with Distributed CBAM in every block).
+
+Training Configuration:
+
+Initialization: Loaded weights from the baseline Aligned_Pretrained_Aux_v2.
+
+Strategy: Rapid Adaptation.
+
+Warm-up: Only 1 epoch with frozen backbone to initialize CBAM weights.
+
+Full Unfreeze: Immediately unfroze the entire network at Epoch 2.
+
+Aggressive LR: LR_START = 0.1 (compared to 0.01 or 0.001 in previous experiments).
+
+Rationale: We hypothesized that the integration of attention modules into every block fundamentally changes the optimal weights for the convolutional layers. A high learning rate allows the network to escape local minima associated with the non-attention architecture and find a new, superior global minimum.
+
+Test Results (Occluded Probe):
+This strategy produced the Global State-of-the-Art (SOTA) for our project, breaking the 90% accuracy barrier.
+
+Metric | Accuracy | Delta (vs  v1) | Delta (vs Baseline v2)|
+-------|----------|---------------|------------------------|
+Rank-1 Accuracy | 90.16% | +2.58% | +11.64% |
+Rank-3 Accuracy | 91.88% | +1.78% | +7.28% |
+
+Final Conclusion: The project demonstrates that standard face recognition models can be made significantly more robust to occlusion (+11.64% accuracy) by integrating distributed attention mechanisms (CBAM) and training them with an aggressive fine-tuning schedule that encourages deep co-adaptation between convolutional features and attention maps.
+
+## 6. Comparative Summary & Conclusion
+
+The table below summarizes the progression of our research, highlighting the impact of architectural choices and training strategies on occlusion robustness.
+
+Model ID | Architecture | Strategy | Rank-1 Acc | Delta (vs Baseline) | 
+---------|--------------|----------|------------|---------------------|
+Aligned_Pretrained_Aux_v2 | Aux (Baseline) | Fine-Tuning | 78.52% | - |
+Aligned_Pretrained_CBAM_L1_v2 | CBAM @ L1 | Front-End Adapt | 43.76% | -34.76% |
+Aligned_Pretrained_CBAM_L3_v1 | CBAM @ L3 | Deep Adapt | 81.77% | +3.25% |
+Aligned_Pretrained_CBAM_L3_v2 | CBAM @ L3 | Differential LR | 86.55% | +8.03% | 
+Aligned_Pretrained_CBAM_Block_v1 | Dist. CBAM | Integrated | 87.58% | +9.06% |
+Aligned_Pretrained_CBAM_Block_v2 | Dist. CBAM | High LR Tune | 90.16% | +11.64% | 
+
+Final Conclusion 
+
+Our proposed architecture (Aligned_Pretrained_CBAM_Block_v2) demonstrates that standard face recognition models can be made significantly more robust to occlusion by:
+
+Integrating Distributed Attention: Modifying the IResNet blocks to include CBAM.
+
+Aggressive Co-Adaptation: Using a high learning rate fine-tuning schedule to align convolutional features with attention maps.
+
+Key Achievement: We successfully surpassed the industry-standard lightweight model (ArcFace Small: 86.65%) by +3.51%, narrowing the gap to the heavy-weight teacher model (ArcFace Large: 94.81%) using a significantly smaller training dataset.
