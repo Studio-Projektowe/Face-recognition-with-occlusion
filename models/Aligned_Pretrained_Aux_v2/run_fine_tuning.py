@@ -20,7 +20,7 @@ TRAIN_DIR = os.path.join(BASE_DIR, 'train')
 VAL_DIR = os.path.join(BASE_DIR, 'val')
 DEBUG_DIR = 'training_photos_stage2'
 
-PRETRAINED_PATH = 'aligned_pretrained_v1.pth' 
+PRETRAINED_PATH = 'Aligned_Pretrained_Aux_v1.pth' 
 
 BATCH_SIZE = 32
 GRAD_ACCUM_STEPS = 2

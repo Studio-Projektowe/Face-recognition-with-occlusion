@@ -14,7 +14,7 @@ from tqdm import tqdm
 from skimage import transform as trans
 from collections import OrderedDict
 
-PRETRAINED_PATH = 'checkpoints_repair_layer3_fixed/fixed_cbam_best.pth' 
+PRETRAINED_PATH = 'checkpoints_repair_layer3_fixed/Aligned_Pretrained_CBAM_L3_v1.pth' 
 TRAIN_DIR = '../webface_112x112/train' 
 VAL_DIR = '../webface_112x112/test'       
 

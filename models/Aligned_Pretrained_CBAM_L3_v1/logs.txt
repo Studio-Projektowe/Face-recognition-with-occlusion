@@ -1,4 +1,4 @@
-Wczytywanie wag z: ./Aligned_Pretrained_Aux_v2.pth
+Wczytywanie wag z: ./Aligned_Pretrained_CBAM_L3_v0.pth
 --------------------------------------------------
  SUKCES: Wczytano wagi CBAM (nie inicjalizujemy od zera!)
 --------------------------------------------------

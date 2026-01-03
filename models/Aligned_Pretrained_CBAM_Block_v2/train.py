@@ -14,7 +14,7 @@ from tqdm import tqdm
 from skimage import transform as trans
 from collections import OrderedDict
 
-BACKBONE_PATH = './best_model_cbam.pth'
+BACKBONE_PATH = './Aligned_Pretrained_Aux_v2.pth'
 TRAIN_DIR = 'webface_112x112/train' 
 VAL_DIR = 'webface_112x112/test'       
 
