@@ -9,7 +9,7 @@ from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed 
 from config import BASE_DATA_DIR, PROCESSING_ORDER, DEVICE, NUM_WORKERS, IMAGE_EXTENSIONS
 
-DETECTION_THRESHOLD = 0.5 
+DETECTION_THRESHOLD = 0.1
 
 logging.basicConfig(level=logging.INFO)
 logging.getLogger('RetinaFace').setLevel(logging.WARNING)
