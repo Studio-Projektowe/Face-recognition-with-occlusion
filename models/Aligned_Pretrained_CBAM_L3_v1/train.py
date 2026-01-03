@@ -14,7 +14,7 @@ from tqdm import tqdm
 from skimage import transform as trans
 from collections import OrderedDict
 
-PRETRAINED_PATH = './best_model_cbam.pth' 
+PRETRAINED_PATH = './Aligned_Pretrained_L3_v0.pth' 
 TRAIN_DIR = '../webface_112x112/train' 
 VAL_DIR = '../webface_112x112/test'       
 

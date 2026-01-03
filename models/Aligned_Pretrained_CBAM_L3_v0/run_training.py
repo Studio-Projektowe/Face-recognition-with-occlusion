@@ -23,7 +23,7 @@ except ImportError:
 import face_align
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-PRETRAINED_PATH = 'aligned_pretrained_v2.pth'
+PRETRAINED_PATH = 'Aligned_Pretrained_Aux_v2.pth'
 BASE_DIR = '../../../../webface_112x112'
 TRAIN_DIR = os.path.join(BASE_DIR, 'train')
 VAL_DIR = os.path.join(BASE_DIR, 'val')

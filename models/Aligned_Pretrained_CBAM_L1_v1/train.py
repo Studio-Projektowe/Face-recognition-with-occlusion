@@ -13,7 +13,7 @@ import random
 from tqdm import tqdm
 from skimage import transform as trans
 
-PRETRAINED_PATH = 'checkpoints_repair_v1/Aligned_Pretrained_CBAM_L1_v1.pth' 
+PRETRAINED_PATH = 'checkpoints_repair_v1/Aligned_Pretrained_Aux_v2.pth' 
 TRAIN_DIR = 'webface_112x112/train' 
 VAL_DIR = 'webface_112x112/test'      
 
@@ -440,7 +440,7 @@ def main():
         scheduler.step()
         
         current_acc = run_verification_test(model, verify_loader, DEVICE)
-        print(f" Epoka {epoch+1}: Train Loss: {avg_loss:.4f} | 🏆 Rank-1 Accuracy: {current_acc:.2f}%")
+        print(f" Epoka {epoch+1}: Train Loss: {avg_loss:.4f} | Rank-1 Accuracy: {current_acc:.2f}%")
         
         if current_acc > best_acc:
             best_acc = current_acc
