@@ -1,4 +1,0 @@
-google-cloud-storage
-faiss-cpu
-tqdm
-scikit-image

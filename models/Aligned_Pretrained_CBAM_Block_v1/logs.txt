@@ -1,0 +1,24 @@
+Walidacja na 500 parach.
+Ładowanie Backbone'u z: ./best_model_cbam.pth
+ Załadowano 475 warstw backbone'u.
+ MROŻENIE BACKBONE'U NA 1. EPOKĘ...
+ START TRENINGU (Final Config)
+ Epoka 1 | Loss: 9.9643 | Avg Sim (500 par): 0.3202
+ Zapisano najlepszy model!
+ ODMRAŻANIE CAŁEGO MODELU...
+ Epoka 2 | Loss: 19.5715 | Avg Sim (500 par): 0.3547
+ Zapisano najlepszy model!
+ Epoka 3 | Loss: 15.8581 | Avg Sim (500 par): 0.4304
+ Zapisano najlepszy model!
+ Epoka 4 | Loss: 14.9145 | Avg Sim (500 par): 0.3806
+ Epoka 5 | Loss: 14.4222 | Avg Sim (500 par): 0.3709
+ Epoka 6 | Loss: 14.1136 | Avg Sim (500 par): 0.4102
+ Epoka 7 | Loss: 13.9176 | Avg Sim (500 par): 0.3886
+ Epoka 8 | Loss: 13.7871 | Avg Sim (500 par): 0.3696
+ Epoka 9 | Loss: 13.6965 | Avg Sim (500 par): 0.3733
+ Epoka 10 | Loss: 9.2759 | Avg Sim (500 par): 0.4257
+ Epoka 11 | Loss: 7.8863 | Avg Sim (500 par): 0.4289
+ Epoka 12 | Loss: 7.7348 | Avg Sim (500 par): 0.4312
+ Zapisano najlepszy model!
+ Epoka 13 | Loss: 7.5932 | Avg Sim (500 par): 0.4274
+ Epoka 14 | Loss: 7.4181 | Avg Sim (500 par): 0.4174
