@@ -1,0 +1,7 @@
+retina-face 
+tf-keras
+opencv-python-headless 
+torch 
+torchvision
+scikit-image
+matplotlib

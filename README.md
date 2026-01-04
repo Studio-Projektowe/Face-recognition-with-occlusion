@@ -1,5 +1,19 @@
 # Face Recognition under Occlusion
 
+## Quick Start - Interactive Demo
+
+Want to see how our best model performs in practice? Open the **[`demo/`](demo/)** folder and check the **`demo.ipynb`** notebook!
+
+The notebook includes:
+- Comparison of results on images **without occlusion** vs **with occlusion** (glasses, masks, shadows)
+- Real-time visualization of face verification results
+- Demonstration of our best model **CBAM_Block_v2**, which achieved **90.16% Rank-1** accuracy on occluded data
+- Examples of both successful and failed identifications
+
+** Note:** You can directly view the pre-computed results and outputs already stored in the notebook cells without running them - just open the `.ipynb` file to see the results! Of course, you're also welcome to run the cells yourself to reproduce the results.
+
+---
+
 ## 1. Project Overview
 
 This project focuses on analyzing, implementing, and evaluating Deep Learning models for face recognition, with a specific emphasis on occlusion robustness.
