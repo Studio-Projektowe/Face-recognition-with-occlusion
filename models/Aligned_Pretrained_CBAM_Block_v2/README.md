@@ -23,8 +23,8 @@ Continuation/refinement of Aligned_Pretrained_CBAM_Block_v1 with CBAM attention 
 
 ## Learning Rates
 - **Initial LR**: 0.1 (LR_START)
-- **Optimizer**: SGD (momentum-based)
-- **Learning Rate Schedule**: Step-decay or manual adjustment expected
+- **Optimizer**: SGD (momentum=0.9, weight_decay=5e-4)
+- **LR Scheduler**: StepLR (step_size=10, gamma=0.1)
 
 ## Loss Function
 - **Main Loss**: CosineSimilarity Loss (face verification metric)

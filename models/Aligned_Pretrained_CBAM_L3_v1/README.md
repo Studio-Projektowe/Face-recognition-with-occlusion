@@ -26,7 +26,8 @@ Layer3-specific CBAM attention fine-tuning with checkpoint resume capability, tr
 
 ## Learning Rates
 - **CBAM LR**: 0.01
-- **Optimizer**: SGD (momentum-based)
+- **Optimizer**: SGD with momentum 0.9, weight_decay 5e-4
+- **Scheduler**: StepLR with step_size=3, gamma=0.1
 - **Fine-tuning Strategy**: Checkpoint resume with continued training
 
 ## Loss Function
@@ -38,9 +39,10 @@ Layer3-specific CBAM attention fine-tuning with checkpoint resume capability, tr
 2. **Phase 2**: Full unfreeze - all layers trained
 
 ## Data Augmentation
-- **Face Occlusion**: Applied during training
-  - Horizontal bar augmentation
-  - Random position/color
+- **Face Occlusion**: Applied during training 100% of the time
+  - Horizontal bar: height=20px
+  - Position: center_y = 52 ± 5 (eyes region)
+  - Color: Random RGB (0-255)
 - **Face Alignment**: 5-point landmark-based normalization
   - From JSON landmark files
   - ArcFace-compatible alignment

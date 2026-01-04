@@ -35,7 +35,7 @@ Stage 2 continuation of CBAM Layer 1 training, fine-tuning pre-trained CBAM atte
 
 ## Data Augmentation
 - **Occlusion Augmentation**: Refined from v1
-  - Horizontal bar: height=10px
+  - Horizontal bar: height=20px (same as other models)
   - Position: center_y = 52 ± 5 (eyes region)
   - Color: Random RGB (0-255)
 - **Face Alignment**: 5-point landmark-based normalization

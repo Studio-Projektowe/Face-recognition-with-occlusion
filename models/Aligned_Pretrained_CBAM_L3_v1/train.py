@@ -283,7 +283,7 @@ class OcclusionDataset(Dataset):
         if landmarks is not None: img = norm_crop(img, landmarks)
         else:
              if img.shape[0] != 112: img = cv2.resize(img, (112, 112))
-        h_bar = 10
+        h_bar = 20
         center_y = 52 + random.randint(-5, 5)
         color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
         cv2.rectangle(img, (0, center_y - h_bar), (112, center_y + h_bar), color, -1)

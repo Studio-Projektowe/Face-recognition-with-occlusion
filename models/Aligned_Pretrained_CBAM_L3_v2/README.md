@@ -25,9 +25,12 @@ Stage 2 full unfreeze training of CBAM Layer3 model with all layers trainable, f
 - **Starting Accuracy**: 60.00% Rank-1 (from v1 checkpoint)
 
 ## Learning Rates
-- **Starting LR**: Not explicitly specified but inferred as conservative
-- **Optimizer**: SGD with momentum
-- **Strategy**: Full unfreeze with all parameters trainable
+- **Backbone (Layers 1-3) LR**: 0.001 (1e-3)
+- **Head (Layer4 + CBAM) LR**: 0.01 (1e-2)
+- **Metric FC LR**: 0.01 (1e-2)
+- **Optimizer**: SGD with momentum 0.9, weight_decay 5e-4
+- **Scheduler**: StepLR with step_size=8, gamma=0.1
+- **Strategy**: Differential learning rates - conservative backbone, higher head/CBAM
 
 ## Loss Function
 - **Main Loss**: ArcMargin Loss (metric learning)
@@ -56,10 +59,13 @@ Stage 2 full unfreeze training of CBAM Layer3 model with all layers trainable, f
   - Conservative learning rates to avoid overtraining
 
 ## Data Augmentation
+- **Face Occlusion**: Applied during training 100% of the time
+  - Horizontal bar: height=20px
+  - Position: center_y = 52 ± 5 (eyes region)
+  - Color: Random RGB (0-255)
 - **Face Alignment**: 5-point landmark-based normalization
   - Landmark from JSON files
   - ArcFace-compatible warping
-- **Face Occlusion**: Standard augmentation (80% probability inferred)
 
 ## Model Checkpointing
 - **Best Model Saved**: Based on accuracy improvement

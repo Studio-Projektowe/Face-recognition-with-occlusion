@@ -44,8 +44,8 @@ VGGFace is a legacy face recognition model based on the VGG deep neural network 
 - **Margin-Based Loss Advantage**: Demonstrates clear superiority of ArcFace/margin-based losses
 - **Softmax Limitations**: Standard softmax loss produces suboptimal feature margins
 - **Legacy Status**: Represents outdated approach to face recognition
-- **Historical Baseline**: Shows 55+ year advancement in deep learning for face tasks
-- **Generalization Gap**: Poor transfer to occluded scenarios despite reasonable clean accuracy
+- **Historical Baseline**: Shows 3-year advancement (VGGFace 2015 → ArcFace 2018) in loss function design
+- **Generalization Gap**: Poor transfer to occluded scenarios - dramatic performance collapse
 
 ## Performance Degradation Comparison
 
@@ -79,7 +79,7 @@ The dramatic difference between VGGFace and modern models illustrates the critic
 ### Technology Gap
 - **Year Developed**: VGGFace (2015), ArcFace (2018)
 - **Time Gap**: 3 years of research advancement
-- **Performance Gap**: 55+ percentage points improvement
+- **Performance Gap**: 55.17 percentage points improvement (94.81% vs 39.64%)
 - **Loss Function Evolution**:
   1. Standard Softmax (early 2010s): VGGFace era
   2. Margin-Based Softmax (2016+): CosFace, SphereFace

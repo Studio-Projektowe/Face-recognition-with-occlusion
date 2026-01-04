@@ -11,6 +11,3 @@ Liczba trenowalnych parametrów: 25,974,370
  Epoka 4 | Loss: 8.0169 | Acc: 66.00%
  Epoka 5 | Loss: 7.4402 | Acc: 65.00%
  Epoka 6 | Loss: 7.1140 | Acc: 66.00%
- Wagi wczytane!
- Odmrażanie wszystkich warstw...
- START FAZY 2: FULL UNFREEZE

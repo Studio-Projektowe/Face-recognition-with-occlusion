@@ -19,7 +19,7 @@ VAL_DIR = 'webface_112x112/test'
 
 BATCH_SIZE = 64
 LR_CBAM = 0.01
-LR_HEAD = 0.01
+LR_HEAD = 0.1
 EPOCHS = 30
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 OUTPUT_DIR = 'checkpoints_repair'
@@ -99,7 +99,7 @@ class OcclusionDataset(Dataset):
         else:
             if img.shape[0] != 112: img = cv2.resize(img, (112, 112))
 
-        h_bar = 10
+        h_bar = 20
         center_y = 52
         center_y += random.randint(-5, 5) 
         

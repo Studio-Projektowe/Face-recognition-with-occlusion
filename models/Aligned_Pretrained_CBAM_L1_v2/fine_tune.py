@@ -69,7 +69,7 @@ class OcclusionDataset(Dataset):
         self.root_dir = root_dir
         self.transform = transform
         self.image_paths = glob.glob(os.path.join(root_dir, "*", "*", "*.jpg"))
-        
+
         if len(self.image_paths) == 0:
             print(f" BŁĄD: Pusto w {root_dir}")
             sys.exit(1)
@@ -99,7 +99,7 @@ class OcclusionDataset(Dataset):
         else:
             if img.shape[0] != 112: img = cv2.resize(img, (112, 112))
 
-        h_bar = 10
+        h_bar = 20
         center_y = 52
         center_y += random.randint(-5, 5) 
         
