@@ -2,7 +2,7 @@
 
 ## Quick Start - Interactive Demo
 
-Want to see how our best model performs in practice? Open the **[`demo/`](demo/)** folder and check the **`demo.ipynb`** notebook!
+Want to see how our best model performs in practice? Open the **[`demo/`](demo/)** folder and check the **`demo_remote.ipynb`** notebook!
 
 The notebook includes:
 - Comparison of results on images **without occlusion** vs **with occlusion** (glasses, masks, shadows)
@@ -11,6 +11,14 @@ The notebook includes:
 - Examples of both successful and failed identifications
 
 ** Note:** You can directly view the pre-computed results and outputs already stored in the notebook cells without running them - just open the `.ipynb` file to see the results! Of course, you're also welcome to run the cells yourself to reproduce the results.
+
+### Run on Google Colab (No Setup Required!)
+
+Want to try the demo without installing anything? Use our public Google Colab notebook:
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1Zld0rrVekVMX64UikFokj_OhhODpjsdL?usp=sharing)
+
+Simply click the button above, make a copy to your Google Drive, and run the cells! You can instantly see how our best model performs on face verification with and without occlusion.
 
 ---
 
