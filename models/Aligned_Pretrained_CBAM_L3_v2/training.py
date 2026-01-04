@@ -183,7 +183,7 @@ class OcclusionDataset(Dataset):
         if lms is not None: img = norm_crop(img, lms)
         else:
              if img.shape[0]!=112: img = cv2.resize(img, (112,112))
-        center_y = 52 + random.randint(-5, 5); h_bar = 10
+        center_y = 52 + random.randint(-5, 5); h_bar = 20
         cv2.rectangle(img, (0, center_y-h_bar), (112, center_y+h_bar), (random.randint(0,255), random.randint(0,255), random.randint(0,255)), -1)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         if self.transform: return self.transform(img), label

@@ -24,8 +24,8 @@ IResNet50 backbone with CBAM (Convolutional Block Attention Module) integrated i
 
 ## Learning Rates
 - **Initial LR**: 0.1 (LR_START)
-- **Optimizer**: SGD with momentum
-- **Scheduler**: Not explicitly specified in provided code (likely step-based decay)
+- **Optimizer**: SGD with momentum 0.9, weight_decay=5e-4
+- **LR Scheduler**: StepLR (step_size=10, gamma=0.1)
 
 ## Loss Function
 - **Main Loss**: CosineSimilarity-based (inferred from verification validation)

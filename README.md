@@ -109,25 +109,35 @@ This hybrid initialization forces the model to re-learn batch statistics and act
 
 To rigorously assess the performance of our models in a real-world identification scenario, we implemented a retrieval-based benchmark using FAISS (Facebook AI Similarity Search).
 
-#### Test Set Split:
+#### Test Set Construction:
 
-* Gallery Set: Comprises "clean" (non-occluded) images from the Test split. We aggregate embeddings for each identity to create a robust class prototype.
+* Gallery Set: Constructed from the first half of image sessions (folders) for each identity in the Test split. Embeddings from multiple images per identity are averaged to create a robust class prototype, then L2-normalized for cosine similarity matching.
 
-* Probe Set: Comprises images from the Test split that are subjected to synthetic occlusion.
+* Probe Set: Constructed from the second half of image sessions for each identity. These images are synthetically occluded during evaluation to test robustness.
 
 #### Evaluation Workflow:
 
-1. Embedding Extraction: The model extracts a 512-dimensional feature vector for every image in both sets.
+1. Embedding Extraction: The model extracts 512-dimensional feature vectors for all gallery and probe images. Embeddings are L2-normalized to enable cosine similarity search.
 
-2. Occlusion Simulation: A 20px height black bar is digitally applied to the eye region of the Probe images based on landmark coordinates.
+2. Index Construction: Gallery embeddings are indexed using FAISS IndexFlatIP (Inner Product on L2-normalized vectors = Cosine Similarity).
 
-3. Similarity Search: For each Probe image, we perform a $k$-Nearest Neighbors search ($k=3$) against the Gallery index using Cosine Similarity.
+3. Occlusion Simulation: A 20px height black bar is applied to each Probe image during evaluation. Bar placement is centered on eye region computed from 5-point landmarks (left_eye_y and right_eye_y center). If landmarks are unavailable, bar is placed at image_height/2 - 10px (fallback). Bar spans full image width and color is solid black (0,0,0).
 
-4. Metrics:
+4. Similarity Search: For each Probe image, we perform a k-Nearest Neighbors search (k=3) against the Gallery index using Cosine Similarity to retrieve top-3 candidates.
 
-* Rank-1 Accuracy: Success if the top match corresponds to the correct identity.
+5. Metrics Computation:
 
-* Rank-3 Accuracy: Success if the correct identity appears within the top 3 matches.
+* Rank-1 Accuracy: Percentage of queries where the highest-ranked match (1st result) corresponds to the correct identity.
+
+* Rank-3 Accuracy: Percentage of queries where the correct identity appears anywhere in the top-3 results.
+
+#### Output Details:
+
+Results are logged to CSV with columns: query_identity, top1_identity, top1_similarity, top2_identity, top2_similarity, top3_identity, top3_similarity, found_in_top3_flag. Sample occluded images are saved periodically for visual inspection.
+
+#### Important Note on Occlusion Consistency:
+
+Training augmentation uses random-colored bars (RGB 0-255 random) at 70%-100% probability depending on model. Evaluation uses deterministic black bars (0,0,0) to create a standardized test condition. This ensures rigorous, reproducible assessment of occlusion robustness. Bar height is consistently 20px across training and evaluation.
 
 ## 4. SOTA Baselines Evaluation
 
@@ -226,16 +236,18 @@ Low Learning Rate: LR_Backbone was reduced to 1e-5 (vs 5e-4 in v1) to prevent "c
 
 Increased Aux Weight: AUX_LOSS_WEIGHT was increased to 0.1 (vs 0.01 in v1). Since the backbone is already stable, we placed stronger emphasis on the mask prediction task to enforce spatial awareness.
 
-Optimization: Trained for 20 epochs with Early Stopping.
+Augmentation: Online synthetic occlusion with P=0.7, utilizing random colored bars (height: 20px) - same as v1.
 
-Results (20 Epochs):
+Optimization: Trained for 15 epochs with Early Stopping (patience=3).
+
+Results (15 Epochs):
 The fine-tuning process resulted in a significant reduction in validation loss compared to v1, indicating improved generalization.
 
 Initial Loss (Val): ~12.35 (Starting point from v1)
 
 Final Loss (Val): ~8.58
 
-Total Queries: 24,227
+Optimizer Configuration: SGD with momentum=0.9, weight_decay=5e-4. Scheduler: ReduceLROnPlateau (factor=0.1, patience=2).
 
 Test Results (Occluded Probe):
 Using the identical evaluation protocol (20px Eye Occlusion):
@@ -263,7 +275,7 @@ Strategy: "Frozen Backbone Adaptation". We froze all layers of the pre-trained b
 
 Rationale: We aimed to see if the attention module alone could adapt to occlusion without altering the deep feature extractors.
 
-Optimization: High LR (0.01) for the CBAM module to encourage rapid adaptation.
+Optimization: High LR (0.01) for the CBAM module to encourage rapid adaptation. Epochs: 30. Augmentation: Online synthetic occlusion (height: 20px, 100% probability).
 
 Test Results (Occluded Probe):
 Evaluation revealed a significant performance degradation compared to the baseline v2 model.
@@ -286,7 +298,7 @@ Training Configuration:
 
 Initialization: Resumed from the best checkpoint of Aligned_Pretrained_CBAM_L1_v1 (starting accuracy ~38%).
 
-Strategy: Continued training for 30 epochs with the backbone remaining frozen.
+Strategy: Continued training for 30 epochs with the backbone remaining frozen. Augmentation: Online synthetic occlusion (height: 20px, 100% probability). Optimizer: SGD with momentum=0.9, weight_decay=5e-4.
 
 Test Results (Occluded Probe):
 While performance improved slightly, it reached a saturation point far below the baseline.
@@ -318,6 +330,8 @@ Trainable: layer3, CBAM, layer4, and the classifier head.
 
 Rationale: By keeping the early layers frozen, we preserve the basic edge/texture detection capabilities. By unfreezing the deeper layers, we allow the network to adapt its semantic understanding to utilize the new attention maps produced by the inserted CBAM block.
 
+Augmentation: Online synthetic occlusion with P=0.7, height: 20px. Epochs: 25. Optimizer: SGD with momentum=0.9, weight_decay=5e-4. Scheduler: ReduceLROnPlateau (factor=0.1, patience=2).
+
 Test Results (Occluded Probe):
 Moving the attention module deeper yielded significantly better results than the Front-End approach, though still below the non-attention baseline.
 
@@ -345,6 +359,8 @@ Phase 2 - Full Unfreeze: All layers of the backbone (L1-L4) and the CBAM module 
 Initialization: Loaded weights from the best checkpoint of L3_v0 (starting accuracy ~65%).
 
 Hypothesis: By allowing the entire network (including early layers) to adjust to the presence of the deep attention module, the network can align its low-level feature extraction to maximize the benefit of the semantic attention.
+
+Optimization: Epochs: 30. LR_CBAM=0.01. Optimizer: SGD with momentum=0.9, weight_decay=5e-4. Scheduler: StepLR (step_size=3, gamma=0.1). Augmentation: Online synthetic occlusion (height: 20px, 100% probability).
 
 Test Results (Occluded Probe):
 This configuration yielded the best results of the entire project, outperforming the non-attention baseline.
@@ -382,6 +398,8 @@ High-Level Features (CBAM + Layer 4 + Head): LR = 1e-2 (Aggressive updates to ad
 
 Rationale: This allows the deep semantic layers to adapt quickly to the attention modulation while preventing catastrophic forgetting in the earlier layers.
 
+Epochs: 25. Batch Size: 48. Optimizer: SGD with momentum=0.9, weight_decay=5e-4. Scheduler: StepLR (step_size=8, gamma=0.1). Augmentation: Online synthetic occlusion (height: 20px, 100% probability).
+
 Test Results (Occluded Probe):
 
 Metric | Accuracy | Delta (vs Baseline v2)| Delta (vs L3 v1)|
@@ -389,7 +407,7 @@ Metric | Accuracy | Delta (vs Baseline v2)| Delta (vs L3 v1)|
 Rank-1 Accuracy | 86.55% | +8.03% | +4.78% |
 Rank-3 Accuracy | 89.55% | +4.95% | +3.31% |
 
-Conclusion: The combination of Deep Attention Placement and Differential Fine-Tuning proved to be the optimal strategy. The model not only recovered the performance lost by architectural modification but significantly surpassed the original non-attention baseline, demonstrating that the attention mechanism effectively learns to "look around" the occlusion.
+Conclusion: The combination of Deep Attention Placement and Differential Fine-Tuning proved to be an effective strategy for L3 bottleneck placement. The model not only recovered the performance lost by architectural modification but significantly surpassed the original non-attention baseline, demonstrating that the attention mechanism effectively learns to "look around" the occlusion.
 
 ### 5.8. Model H: Aligned_Pretrained_CBAM_Block_v1 (Integrated Attention)
 
@@ -405,8 +423,10 @@ Training Configuration:
 
 Initialization: Weights transferred from Aligned_Pretrained_Aux_v2 (matched layers loaded, new intra-block CBAM layers initialized randomly).
 
-Phased Training: 1.  Warm-up: Frozen backbone weights, training only the new CBAM modules.
-2.  Fine-tuning: Full network unfreeze to co-adapt convolutions with attention maps.
+Phased Training: 1.  Warm-up: Frozen backbone weights, training only the new CBAM modules (Epoch 1).
+2.  Fine-tuning: Full network unfreeze to co-adapt convolutions with attention maps (Epochs 2-30).
+
+Augmentation: Online synthetic occlusion with P=0.5, height: 20px. Optimizer: SGD with momentum=0.9, weight_decay=5e-4. Scheduler: StepLR (step_size=10, gamma=0.1). Initial LR: 0.1 (reinit on epoch 1 for full unfreeze).
 
 Test Results (Occluded Probe):
 This granular, distributed attention strategy yielded the absolute highest performance in our research.
@@ -438,6 +458,8 @@ Full Unfreeze: Immediately unfroze the entire network at Epoch 2.
 Aggressive LR: LR_START = 0.1 (compared to 0.01 or 0.001 in previous experiments).
 
 Rationale: We hypothesized that the integration of attention modules into every block fundamentally changes the optimal weights for the convolutional layers. A high learning rate allows the network to escape local minima associated with the non-attention architecture and find a new, superior global minimum.
+
+Augmentation: Online synthetic occlusion with P=0.5, height: 20px. Epochs: 30. Optimizer: SGD with momentum=0.9, weight_decay=5e-4. Scheduler: StepLR (step_size=10, gamma=0.1).
 
 Test Results (Occluded Probe):
 This strategy produced the Global State-of-the-Art (SOTA) for our project, breaking the 90% accuracy barrier.

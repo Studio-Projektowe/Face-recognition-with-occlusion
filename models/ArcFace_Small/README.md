@@ -87,10 +87,11 @@ This demonstrates that **domain-specific optimization can outperform generic SOT
 - **Accuracy vs Speed Trade-off**: Optimized for speed without sacrificing too much accuracy
 - **Ideal For**: Mobile apps, edge devices, real-time streaming, embedded systems
 
-## Performance Degradation Under Occlusion
-- **Clean Faces (No Occlusion)**: ~99%+ (typical benchmark)
-- **With 20px Eye Occlusion**: 86.65% (this evaluation)
-- **Degradation**: ~12-13% accuracy drop (expected for eye occlusion)
+## Performance Under Occlusion Test
+- **Test Condition**: 20px black bar eye occlusion (synthetic)
+- **Rank-1 Accuracy**: 86.65% (this evaluation)
+- **Rank-3 Accuracy**: 90.68% (this evaluation)
+- **Significance**: Maintains strong performance despite significant occlusion
 
 ## Comparison with Larger Variant
 

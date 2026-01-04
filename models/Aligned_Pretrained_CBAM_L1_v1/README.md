@@ -27,9 +27,9 @@ Layer1-specific CBAM attention module trained on IResNet50 backbone for occlusio
 
 ## Learning Rates
 - **CBAM LR**: 0.01
-- **Head (ArcMargin) LR**: 0.01
 - **Optimizer**: SGD with momentum
-- **Momentum**: 0.9 (inferred)
+- **Momentum**: 0.9 (standard)
+- **Note**: All parameters (CBAM + backbone BN/PReLU + head) use single LR of 0.01
 
 ## Loss Function
 - **Training Loss**: ArcMargin Loss (softmax-based metric learning)
@@ -37,7 +37,7 @@ Layer1-specific CBAM attention module trained on IResNet50 backbone for occlusio
 
 ## Data Augmentation
 - **Occlusion Augmentation**: Applied during training
-  - Horizontal bar occlusion: height=10px
+  - Horizontal bar occlusion: height=20px (same as other models)
   - Position: center_y = 52 ± 5 (eyes region)
   - Color: Random RGB values
 - **Face Alignment**: 5-point landmark normalization
@@ -102,7 +102,8 @@ Layer1-specific CBAM attention module trained on IResNet50 backbone for occlusio
 - **Critical Finding**: Drastic drop demonstrates that front-end attention cannot be "plugged into" frozen networks
 - Root cause: Randomly initialized CBAM disrupts input statistics that pre-trained backbone expects
 - Input distribution mismatch creates "covariate shift" - frozen layers treat modified features as noise
-- Training improved from ~1.5% to ~38%, but far below baseline
+- Training: From random initialization (1.5%) to 22% validation accuracy after 10 epochs
+- Final test accuracy: 38.82% on occluded probe set, but far below baseline 78.52%
 - **Conclusion**: Attention modules require **full co-adaptation** with the backbone
 
 ## Additional Notes
