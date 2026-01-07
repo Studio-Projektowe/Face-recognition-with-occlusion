@@ -8,6 +8,7 @@
 .env
 venv
 .venv
+todo.md
 notes.md
 
 **/kaggle.json

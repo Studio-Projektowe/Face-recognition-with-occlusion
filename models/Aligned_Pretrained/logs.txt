@@ -1,0 +1,158 @@
+Start ładowania modelu. Urządzenie: cuda
+Uruchamiam HYBRID LOAD v5 (Greedy + Reinit + DETAILED REPORT) z: w600k_r50_from_onnx.pth
+   ... Etap 1: Dopasowanie znormalizowanych nazw ...
+   ... Etap 2: Chciwe dopasowanie kształtu dla pozostałych ...
+
+============================================================
+SZCZEGÓŁOWY RAPORT DOPASOWANIA WAG
+============================================================
+
+[PLIK -> KOSZ] Wagi z pliku ONNX/PTH nieużyte w modelu (79):
+   - Gemm_682.weight torch.Size([512, 25088])
+   - _initializer_685 torch.Size([64, 3, 3, 3])
+   - _initializer_688 torch.Size([64, 64, 3, 3])
+   - _initializer_691 torch.Size([64, 64, 3, 3])
+   - _initializer_694 torch.Size([64, 64, 1, 1])
+   - _initializer_697 torch.Size([64, 64, 3, 3])
+   - _initializer_700 torch.Size([64, 64, 3, 3])
+   - _initializer_703 torch.Size([64, 64, 3, 3])
+   - _initializer_706 torch.Size([64, 64, 3, 3])
+   - _initializer_709 torch.Size([128, 64, 3, 3])
+   - _initializer_712 torch.Size([128, 128, 3, 3])
+   - _initializer_715 torch.Size([128, 64, 1, 1])
+   - _initializer_718 torch.Size([128, 128, 3, 3])
+   - _initializer_721 torch.Size([128, 128, 3, 3])
+   - _initializer_724 torch.Size([128, 128, 3, 3])
+   - _initializer_727 torch.Size([128, 128, 3, 3])
+   - _initializer_730 torch.Size([128, 128, 3, 3])
+   - _initializer_733 torch.Size([128, 128, 3, 3])
+   - _initializer_736 torch.Size([256, 128, 3, 3])
+   - _initializer_739 torch.Size([256, 256, 3, 3])
+   - _initializer_742 torch.Size([256, 128, 1, 1])
+   - _initializer_745 torch.Size([256, 256, 3, 3])
+   - _initializer_748 torch.Size([256, 256, 3, 3])
+   - _initializer_751 torch.Size([256, 256, 3, 3])
+   - _initializer_754 torch.Size([256, 256, 3, 3])
+   - _initializer_757 torch.Size([256, 256, 3, 3])
+   - _initializer_760 torch.Size([256, 256, 3, 3])
+   - _initializer_763 torch.Size([256, 256, 3, 3])
+   - _initializer_766 torch.Size([256, 256, 3, 3])
+   - _initializer_769 torch.Size([256, 256, 3, 3])
+   - _initializer_772 torch.Size([256, 256, 3, 3])
+   - _initializer_775 torch.Size([256, 256, 3, 3])
+   - _initializer_778 torch.Size([256, 256, 3, 3])
+   - _initializer_781 torch.Size([256, 256, 3, 3])
+   - _initializer_784 torch.Size([256, 256, 3, 3])
+   - _initializer_787 torch.Size([256, 256, 3, 3])
+   - _initializer_790 torch.Size([256, 256, 3, 3])
+   - _initializer_793 torch.Size([256, 256, 3, 3])
+   - _initializer_796 torch.Size([256, 256, 3, 3])
+   - _initializer_799 torch.Size([256, 256, 3, 3])
+   - _initializer_802 torch.Size([256, 256, 3, 3])
+   - _initializer_805 torch.Size([256, 256, 3, 3])
+   - _initializer_808 torch.Size([256, 256, 3, 3])
+   - _initializer_811 torch.Size([256, 256, 3, 3])
+   - _initializer_814 torch.Size([256, 256, 3, 3])
+   - _initializer_817 torch.Size([256, 256, 3, 3])
+   - _initializer_820 torch.Size([256, 256, 3, 3])
+   - _initializer_823 torch.Size([512, 256, 3, 3])
+   - _initializer_826 torch.Size([512, 512, 3, 3])
+   - _initializer_829 torch.Size([512, 256, 1, 1])
+   - _initializer_832 torch.Size([512, 512, 3, 3])
+   - _initializer_835 torch.Size([512, 512, 3, 3])
+   - _initializer_838 torch.Size([512, 512, 3, 3])
+   - _initializer_841 torch.Size([512, 512, 3, 3])
+   - _initializer_843 torch.Size([64, 1, 1])
+   - _initializer_844 torch.Size([64, 1, 1])
+   - _initializer_845 torch.Size([64, 1, 1])
+   - _initializer_846 torch.Size([64, 1, 1])
+   - _initializer_847 torch.Size([128, 1, 1])
+   - _initializer_848 torch.Size([128, 1, 1])
+   - _initializer_849 torch.Size([128, 1, 1])
+   - _initializer_850 torch.Size([128, 1, 1])
+   - _initializer_851 torch.Size([256, 1, 1])
+   - _initializer_852 torch.Size([256, 1, 1])
+   - _initializer_853 torch.Size([256, 1, 1])
+   - _initializer_854 torch.Size([256, 1, 1])
+   - _initializer_855 torch.Size([256, 1, 1])
+   - _initializer_856 torch.Size([256, 1, 1])
+   - _initializer_857 torch.Size([256, 1, 1])
+   - _initializer_858 torch.Size([256, 1, 1])
+   - _initializer_859 torch.Size([256, 1, 1])
+   - _initializer_860 torch.Size([256, 1, 1])
+   - _initializer_861 torch.Size([256, 1, 1])
+   - _initializer_862 torch.Size([256, 1, 1])
+   - _initializer_863 torch.Size([256, 1, 1])
+   - _initializer_864 torch.Size([256, 1, 1])
+   - _initializer_865 torch.Size([512, 1, 1])
+   - _initializer_866 torch.Size([512, 1, 1])
+   - _initializer_867 torch.Size([512, 1, 1])
+
+[MODEL -> PUSTE] Warstwy modelu bez wczytanych wag (26):
+   - layer1.2.bn3.bias torch.Size([64])
+   - layer1.2.bn3.running_mean torch.Size([64])
+   - layer1.2.bn3.running_var torch.Size([64])
+   - layer1.2.bn3.weight torch.Size([64])
+   - layer2.3.bn2.running_var torch.Size([128])
+   - layer2.3.bn3.bias torch.Size([128])
+   - layer2.3.bn3.running_mean torch.Size([128])
+   - layer2.3.bn3.running_var torch.Size([128])
+   - layer2.3.bn3.weight torch.Size([128])
+   - layer2.3.prelu.weight torch.Size([128])
+   - layer3.12.bn2.running_mean torch.Size([256])
+   - layer3.12.bn2.running_var torch.Size([256])
+   - layer3.12.bn3.bias torch.Size([256])
+   - layer3.12.bn3.running_mean torch.Size([256])
+   - layer3.12.bn3.running_var torch.Size([256])
+   - layer3.12.bn3.weight torch.Size([256])
+   - layer3.12.prelu.weight torch.Size([256])
+   - layer3.13.bn2.bias torch.Size([256])
+   - layer3.13.bn2.running_mean torch.Size([256])
+   - layer3.13.bn2.running_var torch.Size([256])
+   - layer3.13.bn2.weight torch.Size([256])
+   - layer3.13.bn3.bias torch.Size([256])
+   - layer3.13.bn3.running_mean torch.Size([256])
+   - layer3.13.bn3.running_var torch.Size([256])
+   - layer3.13.bn3.weight torch.Size([256])
+   - layer3.13.prelu.weight torch.Size([256])
+
+  Te warstwy zostaną zreinicjalizowane losowo (Kaiming/Normal).
+============================================================
+
+Resetowanie warstwy: layer1.2.bn3
+Resetowanie warstwy: layer2.3.prelu
+Resetowanie warstwy: layer2.3.bn3
+Resetowanie warstwy: layer3.12.prelu
+Resetowanie warstwy: layer3.12.bn3
+Resetowanie warstwy: layer3.13.bn2
+Resetowanie warstwy: layer3.13.prelu
+Resetowanie warstwy: layer3.13.bn3
+Zreinicjalizowano 8 modułów, którym brakowało wag.
+
+Uruchamiam SZPITAL (Sanitize Model)...
+Szpital zakończony. Wprowadzono 48 poprawek.
+
+Epoch 1 | Loss: 20.7098 | Ver Sim: 0.2988
+--> Saved best model with sim: 0.2988
+Epoch 2 | Loss: 14.3277 | Ver Sim: 0.3613
+--> Saved best model with sim: 0.3613
+Epoch 3 | Loss: 11.4089 | Ver Sim: 0.3903
+--> Saved best model with sim: 0.3903
+Epoch 4 | Loss: 9.9039 | Ver Sim: 0.3988
+--> Saved best model with sim: 0.3988
+Epoch 5 | Loss: 8.9380 | Ver Sim: 0.4108
+--> Saved best model with sim: 0.4108
+Epoch 6 | Loss: 8.2134 | Ver Sim: 0.4087
+--> No improvement. Patience: 1/5
+Epoch 7 | Loss: 7.6261 | Ver Sim: 0.4107
+--> No improvement. Patience: 2/5
+Epoch 8 | Loss: 7.1159 | Ver Sim: 0.4110
+--> Saved best model with sim: 0.4110
+Epoch 9 | Loss: 6.6709 | Ver Sim: 0.4077
+--> No improvement. Patience: 1/5
+Epoch 10 | Loss: 6.2622 | Ver Sim: 0.4017
+--> No improvement. Patience: 2/5
+Epoch 11 | Loss: 5.8851 | Ver Sim: 0.3992
+--> No improvement. Patience: 3/5
+Epoch 12 | Loss: 5.5307 | Ver Sim: 0.3930
+--> No improvement. Patience: 4/5
