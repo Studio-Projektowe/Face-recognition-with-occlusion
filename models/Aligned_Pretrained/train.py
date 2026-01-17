@@ -21,7 +21,6 @@ VAL_DIR = os.path.join(BASE_DIR, 'test')
 SAVE_PATH = 'baseline.pth'
 
 BATCH_SIZE = 32
-GRAD_ACCUM_STEPS = 2
 EPOCHS = 25
 OCCLUSION_PROB = 0.7
 OCCLUSION_HEIGHT = 20
@@ -29,7 +28,6 @@ NUM_WORKERS = 4 if os.name != 'nt' else 0
 PATIENCE = 5
 NUM_VERIFY_PAIRS = 500
 
-LR_BACKBONE = 5e-4
 LR_HEAD = 0.01
 # ==========================================
 

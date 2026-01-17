@@ -16,7 +16,7 @@ except ImportError:
     print("BŁĄD: Nie znaleziono pliku load_and_test.py w tym folderze.")
     sys.exit(1)
 
-MODEL_PATH = 'best_model.pth'
+MODEL_PATH = 'baseline.pth'
 
 BASE_TEST_FOLDER = '../webface_112x112/test' 
 

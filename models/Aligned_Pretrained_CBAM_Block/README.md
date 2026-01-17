@@ -1,102 +1,46 @@
-# Aligned_Pretrained_CBAM_Block_v2
+# Aligned_Pretrained_CBAM_Block
 
-## Overview
-Continuation/refinement of Aligned_Pretrained_CBAM_Block_v1 with CBAM attention blocks integrated into the residual network for improved occlusion handling.
+## Summary
+This model is `iResNet50` with `CBAM` inside each block (`CBAMBasicBlock`). Training uses `ArcMarginProduct` on WebFace `112×112` with occlusion augmentation, and validation is mean cosine similarity on `500` pairs.
 
-## Base Model
-- **Source**: Aligned_Pretrained_Aux_v2.pth
-- **Architecture**: IResNet50 with CBAM attention in residual blocks
-- **Input Size**: 112×112 RGB
-- **Feature Dimension**: 512
+## Training process
+- **Data**: `webface_112x112/train` and `webface_112x112/test`.
+- **Alignment**: 5‑point ArcFace landmarks, resize to `112×112`.
+- **Occlusion**: random eye band with probability `0.5` in the dataset.
+- **Validation**: mean cosine similarity on `500` pairs.
+- **Checkpoint**: `checkpoints_cbam_inside_v2/best_cbam_final.pth` (best `Avg Sim`).
 
-## CBAM Configuration
-- **Channel Attention**: Ratio = 16
-- **Spatial Attention**: Kernel size = 7
-- **Integration**: CBAM applied at end of each CBAMBasicBlock
-- **Attention Flow**: Multiplicative with residual connection
+## Base model
+- **Architecture**: `iResNet50` (`[3,4,14,3]`) with `CBAM` inside blocks.
+- **Output**: `512D` embedding after `fc` and `features`.
 
-## Training Configuration
-- **Batch Size**: 64
-- **Epochs**: 30
-- **Training Data**: WebFace dataset (webface_112x112/train)
-- **Validation Data**: WebFace dataset (webface_112x112/test)
+## Loaded weights
+- **In code**: `BACKBONE_PATH = ./Aligned_Pretrained.pth`.
+- **In logs**: `./Aligned_Pretrained_Aux_v2.pth` was loaded (`475` backbone layers).
+- **Loading**: name/shape matching; missing layers ignored.
+- **Loaded layer types**: standard backbone layers (`conv*`, `bn*`, `prelu`, blocks `layer1–layer4`, `fc`, `features`) that match by name/shape.
+- **Not loaded (random init)**: `CBAM` layers (`cbam.ca.*`, `cbam.sa.*`) and `metric_fc` (`ArcMarginProduct`) — not present in backbone checkpoints.
 
-## Learning Rates
-- **Initial LR**: 0.1 (LR_START)
-- **Optimizer**: SGD (momentum=0.9, weight_decay=5e-4)
-- **LR Scheduler**: StepLR (step_size=10, gamma=0.1)
+## Frozen weights
+- **Epoch 1**: all backbone layers frozen (including convolutional, `BN`, `PReLU`, `fc`, `features`); only `CBAM` and `metric_fc` trained.
+- **From epoch 2**: full backbone unfrozen and trained jointly.
 
-## Loss Function
-- **Main Loss**: CosineSimilarity Loss (face verification metric)
-- **Validation Metric**: Average cosine similarity on verification pairs
+## Hyperparameters (`train.py`)
+- `BATCH_SIZE=64`
+- `EPOCHS=30`
+- `LR_START=0.1` (SGD, `momentum=0.9`, `weight_decay=5e-4`)
+- `StepLR(step_size=10, gamma=0.1)`
+- Validation: `num_pairs=500`
 
-## Data Augmentation
-- **Face Occlusion**: 50% probability
-  - Random horizontal bar (height=20px)
-  - Color: Random RGB values
-  - Position: Center around y=42-62 (eyes region)
-- **Face Alignment**: 5-point landmark-based normalization to 112×112
-  - Landmarks from JSON files
-  - ArcFace-compatible alignment
+## Results
+- **Evaluation (`score.txt`)**: Rank-1 = `90.16%`, Rank-3 = `91.88%`.
+- **Evaluation** in `evaluation/run_evaluation.py`: metrics saved to `metrics_final_correct/evaluation_results.csv`.
 
-## Layer Freezing Strategy
-- **Phase 1 (Epoch 1)**:
-  - CBAM: Frozen
-  - Backbone (Layers 1-3): Frozen
-  - Backbone (Layer 4): Trainable
-  - Purpose: Gradual CBAM integration
-  
-- **Phase 2 (Epochs 2+)**:
-  - CBAM: Unfrozen and fully trainable
-  - All backbone layers: Trainable
-  - Full model optimization with attention refinement
+## Training/Evaluation Issues That Could Affect Results
+- The code uses `BACKBONE_PATH = ./Aligned_Pretrained.pth`, but logs show `./Aligned_Pretrained_Aux_v2.pth` was actually loaded. This mismatch can make reproduction inconsistent.
+- CBAM weights are **not** loaded from the backbone checkpoint (they are random at start), so early training depends heavily on random initialization.
+- No fixed random seed is set (augmentation + sampling), so results can vary between runs.
 
-## Model Checkpointing
-- **Best Model Path**: `best_model_cbam.pth`
-- **Checkpoint Strategy**: Save on validation improvement
-- **Criterion**: Lowest validation loss / highest similarity score
-
-## Training Strategy
-1. **Initial Phase**: CBAM frozen for stable backbone fine-tuning
-2. **Unfreeze Phase**: Entire model trained with lower learning rates
-3. **Verification Every Epoch**: 500 image pairs validate alignment quality
-
-## Architecture Details
-- **IResNetCBAM** with:
-  - Layer1, Layer2, Layer3, Layer4 with CBAM in blocks
-  - Dropout: 0% (inference-focused)
-  - Output: 512-dim feature vector
-  - Final: BatchNorm1d normalization
-
-## Evaluation Results (Test Set with 20px Eye Occlusion)
-
-### Test Configuration
-- **Gallery**: Clean images from test set
-- **Probe**: Synthetically occluded images (20px black bar at eye region)
-- **Total Queries**: 24,227
-- **Evaluation Method**: FAISS k-NN similarity search
-
-### Performance Metrics
-
-| Metric | Accuracy | Count (Correct/Total) | Delta (vs Aux_v2 Baseline) | Delta (vs Block_v1) |
-|--------|----------|----------------------|---------------------------|----------------------|
-| **Rank-1 Accuracy** | **90.16%** | 21,851 / 24,227 | **+11.64%** | +2.58% |
-| **Rank-3 Accuracy** | **91.88%** | 22,277 / 24,227 | +7.28% | +1.78% |
-
-### Key Achievement - GLOBAL STATE-OF-THE-ART
-- **First model to break 90% Rank-1 accuracy barrier**
-- Surpasses industry-standard ArcFace Small (86.65%) by 3.51%
-- Aggressive fine-tuning (LR=0.1) allowed network to escape local minima
-- Distributed attention + high learning rate = optimal strategy
-
-### Comparison to SOTA
-- **ArcFace Large (buffalo_l)**: 94.81% (trained on 5.8M images)
-- **ArcFace Small (buffalo_s)**: 86.65% (lightweight industry standard)
-- **Our Best Model (Block_v2)**: **90.16%** (WebFace 500K images) ← **+3.51% vs ArcFace Small**
-
-## Additional Notes
-- Model designed for **occluded face recognition**
-- Attention mechanism focuses on discriminative regions despite occlusions
-- Two-stage training approach (frozen then unfrozen)
-- Output directory: `checkpoints_cbam_inside_v2`
-- v2 is similar to v1 with potential refinements in hyperparameters or training stability
+## Epochs (`logs.txt`)
+- `logs.txt` contains epochs `1–30`.
+- Best `Avg Sim` in the log: `0.4381` (epoch `20`).
