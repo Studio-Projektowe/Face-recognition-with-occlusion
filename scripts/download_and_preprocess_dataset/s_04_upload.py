@@ -24,15 +24,15 @@ def run():
         print(f"BŁĄD: Problem z gsutil: {e.stderr}")
         sys.exit(1)
 
-    # gsutil -m cp -r webface-112x112 gs://my-awesome-bucket/
+                                                             
     source_path = BASE_DATA_DIR
     destination_path = f"gs://{BUCKET_NAME}/"
     
     command = [
         "gsutil",
-        "-m",       # Użyj wielowątkowości do kopiowania
-        "cp",       # Kopiuj
-        "-r",       # Rekursywnie
+        "-m",                                           
+        "cp",               
+        "-r",                    
         source_path,
         destination_path
     ]
@@ -49,7 +49,7 @@ def run():
     print("--- Etap 4: Zakończony Pomyślnie ---")
 
 if __name__ == "__main__":
-    # Wymaga ręcznego ustawienia zmiennych do testów:
-    # os.environ["BUCKET_NAME"] = "your-test-bucket"
-    # Oraz uwierzytelnienia gcloud (np. `gcloud auth login`)
+                                                     
+                                                    
+                                                            
     run()

@@ -63,9 +63,9 @@ def inspect_pth(file_path, save_path):
                     if tensor.numel() > 0:
                         try:
                             mean_val = f"{tensor.float().mean().item():.4f}"
-                            # Opcjonalnie: min/max
-                            # min_val = f"{tensor.min().item():.4f}"
-                            # max_val = f"{tensor.max().item():.4f}"
+                                                  
+                                                                    
+                                                                    
                         except:
                             mean_val = "N/A"
                     else:

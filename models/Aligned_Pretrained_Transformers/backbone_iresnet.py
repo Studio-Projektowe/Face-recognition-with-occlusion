@@ -4,13 +4,11 @@ import torch.nn as nn
 __all__ = ['iresnet50']
 
 def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
-    """3x3 convolution with padding"""
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
                      padding=dilation, groups=groups, bias=False,
                      dilation=dilation)
 
 def conv1x1(in_planes, out_planes, stride=1):
-    """1x1 convolution"""
     return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride,
                      bias=False)
 
@@ -122,10 +120,10 @@ class IResNet(nn.Module):
         x = self.layer3(x)
         x = self.layer4(x)
         x = self.bn2(x)
-        # x = torch.flatten(x, 1)
-        # x = self.dropout(x)
-        # x = self.fc(x)
-        # x = self.features(x)
+                                 
+                             
+                        
+                              
         return x
 
 def iresnet50(weights_path=None, **kwargs):

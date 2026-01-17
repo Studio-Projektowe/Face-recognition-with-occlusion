@@ -259,9 +259,9 @@ class VerificationDataset(Dataset):
         cv2.rectangle(img_o, (0, 42), (112, 62), (random.randint(0,255), random.randint(0,255), random.randint(0,255)), -1)
         
         if self.transform: 
-            return self.transform(cv2.cvtColor(img_c, cv2.COLOR_BGR2RGB)), \
+            return self.transform(cv2.cvtColor(img_c, cv2.COLOR_BGR2RGB)),\
                    self.transform(cv2.cvtColor(img_o, cv2.COLOR_BGR2RGB))
-        return transforms.ToTensor()(cv2.cvtColor(img_c, cv2.COLOR_BGR2RGB)), \
+        return transforms.ToTensor()(cv2.cvtColor(img_c, cv2.COLOR_BGR2RGB)),\
                transforms.ToTensor()(cv2.cvtColor(img_o, cv2.COLOR_BGR2RGB))
 
 def run_verification_test(model, val_loader, device):

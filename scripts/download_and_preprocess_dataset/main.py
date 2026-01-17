@@ -25,23 +25,23 @@ def main():
     logging.info(f"Urządzenie do przetwarzania: {DEVICE}")
 
     try:
-        # Krok 1: Pobieranie
+                            
         logging.info("="*50)
         s_01_download.run()
         
-        # Krok 2: Przygotowanie (train/val/test)
+                                                
         logging.info("="*50)
         s_02_prepare.run()
         
-        # Krok 2b: Restrukturyzacja (przeniesienie do podfolderów)
+                                                                  
         logging.info("="*50)
         s_02b_restructure.run()
 
-        # Krok 3: Przetwarzanie (RetinaFace)
+                                            
         logging.info("="*50)
         s_03_process.run()
         
-        # Krok 4: Wysyłanie
+                           
         logging.info("="*50)
         s_04_upload.run()
         

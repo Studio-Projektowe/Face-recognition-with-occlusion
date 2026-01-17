@@ -10,10 +10,10 @@ import json
 import random
 from tqdm import tqdm
 from skimage import transform as trans
-# Import modelu - UWAGA: Backbone musi zwracać tensor (B, C, H, W)
+                                                                  
 from load import load_clean_model, DEVICE
 
-# ================= CONFIG =================
+                                            
 BASE_DIR = '../webface_112x112'
 TRAIN_DIR = os.path.join(BASE_DIR, 'train')
 VAL_DIR = os.path.join(BASE_DIR, 'test')
@@ -27,15 +27,15 @@ PATIENCE = 5
 NUM_VERIFY_PAIRS = 500
 LR_HEAD = 0.01
 
-# Parametry z artykułu
-ALPHA = 0.4  # Loss balancing factor (Sec IV.C) [cite: 148]
-TRANSFORMER_LAYERS = 6  # (Sec III) [cite: 71]
-TRANSFORMER_HEADS = 8   # (Sec IV.B) [cite: 140]
-# ==========================================
+                      
+ALPHA = 0.4                                                
+TRANSFORMER_LAYERS = 6                        
+TRANSFORMER_HEADS = 8                           
+                                            
 
-# ... [Funkcje ALIGNMENT i DATASET pozostają bez zmian] ...
+                                                           
 
-# ---------- ALIGNMENT ----------
+                                 
 arcface_dst = np.array([
     [38.2946, 51.6963],
     [73.5318, 51.5014],
@@ -72,7 +72,7 @@ def get_landmarks_from_json(json_path):
     except:
         return None
 
-# ---------- DATASETS ----------
+                                
 class VerificationDataset(Dataset):
     def __init__(self, root_dir, transform=None, num_pairs=500):
         self.transform = transform
@@ -136,7 +136,7 @@ class OcclusionFaceDataset(Dataset):
         if random.random() < OCCLUSION_PROB: img = self.apply_occlusion(img)
         return self.transform(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)), label
 
-# ---------- MODEL COMPONENTS ----------
+                                        
 
 class ArcMarginProduct(nn.Module):
     def __init__(self, in_f, out_f, s=30.0, m=0.5):
@@ -153,11 +153,11 @@ class ArcMarginProduct(nn.Module):
         one_hot.scatter_(1, y.view(-1,1), 1)
         return self.s * (one_hot * phi + (1-one_hot) * cosine)
 
-# Implementacja "Transformer Loss" (Branch-2) [cite: 9]
+                                                       
 class TransformerHead(nn.Module):
     def __init__(self, in_channels, num_classes, dim_feedforward=2048):
         super().__init__()
-        # Input: (Batch, Sequence, Features)
+                                            
         self.encoder_layer = nn.TransformerEncoderLayer(
             d_model=in_channels, 
             nhead=TRANSFORMER_HEADS, 
@@ -166,26 +166,26 @@ class TransformerHead(nn.Module):
         )
         self.transformer = nn.TransformerEncoder(self.encoder_layer, num_layers=TRANSFORMER_LAYERS)
         
-        # Linear layer for classification directly from transformer embedding [cite: 91]
-        # Uwaga: Branch 2 używa standardowego CrossEntropy, nie ArcFace 
+                                                                                        
+                                                                        
         self.fc = nn.Linear(in_channels, num_classes)
 
     def forward(self, x):
-        # x is spatial feature map: (Batch, C, H, W)
+                                                    
         b, c, h, w = x.shape
         
-        # 1. Reshape to sequence of vectors (Contextual representation) [cite: 66]
-        # (B, C, H, W) -> (B, C, H*W) -> (B, H*W, C)
+                                                                                  
+                                                    
         x = x.view(b, c, h*w).permute(0, 2, 1)
         
-        # 2. Transformer Encoder [cite: 72]
+                                           
         x = self.transformer(x)
         
-        # 3. Mean pooling along sequence length (Eq. 7) [cite: 78]
-        # T_epsilon calculation
+                                                                  
+                               
         x = x.mean(dim=1) 
         
-        # 4. Linear Projection (Eq. 8) [cite: 89]
+                                                 
         out = self.fc(x)
         return out
 
@@ -194,56 +194,56 @@ class FaceModelWithTransformer(nn.Module):
         super().__init__()
         self.backbone = backbone
         
-        # Branch 1: Standard Metric Learning Head (ArcFace)
-        # Nie tworzymy tutaj nowych warstw 'flatten' czy 'bn', 
-        # bo użyjemy tych, które są już w self.backbone (wczytane z pliku wag)
+                                                           
+                                                               
+                                                                              
         self.arc = ArcMarginProduct(512, num_classes)
         
-        # Branch 2: Transformer Auxiliary Head [cite: 9]
-        # Wejście: 512 kanałów (głębokość mapy cech)
+                                                        
+                                                    
         self.transformer_head = TransformerHead(in_channels=512, num_classes=num_classes)
 
     def forward(self, x, y=None):
-        # 1. Pobieramy mapę przestrzenną (B, 512, 7, 7) z backbone
-        # To jest wyjście potrzebne dla Transformera (Branch-2) [cite: 66]
+                                                                  
+                                                                          
         features_spatial = self.backbone(x) 
         
-        # --- BRANCH 1 (Standard Metric Learning) ---
-        # Musimy "ręcznie" dokończyć to, co usunęłaś z forward backbone'a,
-        # żeby uzyskać embedding 512 zgodny z wytrenowanymi wagami.
+                                                     
+                                                                          
+                                                                   
         
-        # A. Spłaszczenie (Flatten)
+                                   
         features_flat = torch.flatten(features_spatial, 1)
         
-        # B. Dropout (jeśli istnieje w backbone)
+                                                
         if hasattr(self.backbone, 'dropout'):
             features_flat = self.backbone.dropout(features_flat)
             
-        # C. Oryginalna warstwa FC (Linear) - kluczowa dla dopasowania wymiarów
+                                                                               
         if hasattr(self.backbone, 'fc'):
             features_flat = self.backbone.fc(features_flat)
         
-        # D. Oryginalna warstwa BN (Features) - to jest finalny embedding
+                                                                         
         embedding_512 = features_flat
         if hasattr(self.backbone, 'features'):
             embedding_512 = self.backbone.features(features_flat)
             
-        # Obliczamy ArcFace Loss lub zwracamy sam embedding (dla walidacji) [cite: 96]
+                                                                                      
         metric_out = self.arc(embedding_512, y) if y is not None else embedding_512
         
-        # --- BRANCH 2 (Transformer) ---
-        # Obliczamy tylko podczas treningu [cite: 122]
+                                        
+                                                      
         trans_out = None
         if self.training and y is not None:
-            # Transformer bierze mapę przestrzenną (spatial features)
+                                                                     
             trans_out = self.transformer_head(features_spatial)
             
         return metric_out, trans_out
 
-# ---------- MAIN ----------
+                            
 def main():
-    # WAŻNE: Upewnij się, że load_clean_model zwraca model bez ostatniej warstwy pooling/flatten
-    # np. return_features=True w timm lub forward_features()
+                                                                                                
+                                                            
     backbone = load_clean_model() 
     
     num_classes = len(os.listdir(TRAIN_DIR))
@@ -259,8 +259,8 @@ def main():
     val_ds = VerificationDataset(VAL_DIR, transform, NUM_VERIFY_PAIRS)
     val_loader = DataLoader(val_ds, BATCH_SIZE, shuffle=False)
     
-    # Optymalizacja obu gałęzi
-    optimizer = optim.SGD(model.parameters(), lr=LR_HEAD, momentum=0.9, weight_decay=5e-4) # [cite: 134]
+                              
+    optimizer = optim.SGD(model.parameters(), lr=LR_HEAD, momentum=0.9, weight_decay=5e-4)              
     criterion = nn.CrossEntropyLoss()
     
     best_sim = -1.0
@@ -269,26 +269,26 @@ def main():
     print(f"Starting training with Transformer Auxiliary Loss (Alpha={ALPHA})...")
     
     for epoch in range(EPOCHS):
-        # --- TRENING ---
+                         
         model.train()
         train_loss = 0.0
         
-        # Pasek postępu
+                       
         pbar = tqdm(train_loader, desc=f"Epoch {epoch+1} Train")
         for img, lbl in pbar:
             img, lbl = img.to(DEVICE), lbl.to(DEVICE)
             
-            # Forward zwraca dwa wyjścia
+                                        
             metric_out, trans_out = model(img, lbl)
             
-            # Loss 1: Metric Loss (ArcFace) [cite: 96]
+                                                      
             loss_metric = criterion(metric_out, lbl)
             
-            # Loss 2: Transformer Loss (Standard CrossEntropy) [cite: 114, 116]
+                                                                               
             loss_trans = criterion(trans_out, lbl)
             
-            # Final combined loss (Eq. 10) 
-            # L_F = (1 - alpha) * L_Metric + alpha * L_Trans
+                                           
+                                                            
             loss = (1 - ALPHA) * loss_metric + ALPHA * loss_trans
             
             optimizer.zero_grad()
@@ -300,15 +300,15 @@ def main():
         
         avg_train_loss = train_loss / len(train_loader)
         
-        # --- WALIDACJA ---
+                           
         model.eval()
         sims = []
         with torch.no_grad():
             for a, b in tqdm(val_loader, desc=f"Epoch {epoch+1} Val"):
                 a, b = a.to(DEVICE), b.to(DEVICE)
                 
-                # Do inferencji używamy TYLKO gałęzi standardowej (Branch-1) [cite: 121]
-                # Branch-2 (Transformer) służy tylko do aktualizacji wag podczas treningu
+                                                                                        
+                                                                                         
                 ea, _ = model(a) 
                 eb, _ = model(b)
                 

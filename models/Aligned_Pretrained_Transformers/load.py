@@ -16,14 +16,12 @@ EXAMPLE_IMG_PATH = 'example.jpg'
 REFERENCE_EMBEDDING_SAMPLE = np.array([0.0076, -0.0122, 0.0345, -0.0511, 0.0210, -0.0049])
 
 def normalize_name(name):
-    """Normalizacja nazw do porównywania."""
     name = name.replace('_initializer_', '')
     name = name.replace('module.', '')
     name = name.replace('.', '').replace('_', '').lower()
     return name
 
 def reset_layer_params(layer, name):
-    """Resetuje parametry warstwy do bezpiecznych wartości startowych."""
     print(f"Resetowanie warstwy: {name}")
     if isinstance(layer, nn.Conv2d):
         nn.init.kaiming_normal_(layer.weight, mode='fan_out', nonlinearity='relu')
@@ -41,16 +39,12 @@ def reset_layer_params(layer, name):
         nn.init.constant_(layer.weight, 0.25)
 
 def sanitize_model(model):
-    """
-    SZPITAL DLA MODELU:
-    Przechodzi przez model i leczy potencjalne przyczyny NaN (zerowa wariancja, NaN w wagach).
-    """
     print("\nUruchamiam SZPITAL (Sanitize Model)...")
     fixes = 0
     for name, m in model.named_modules():
         if isinstance(m, (nn.BatchNorm1d, nn.BatchNorm2d)):
             if m.running_var is not None:
-                # Jeśli wariancja jest < 1e-5 (lub NaN), ustawiamy bezpieczną wartość
+                                                                                     
                 if torch.isnan(m.running_var).any() or (m.running_var < 1e-5).any():
                     m.running_var.data.clamp_(min=1e-4)
                     m.running_var.data[torch.isnan(m.running_var.data)] = 1.0
@@ -222,21 +216,21 @@ def generate_embedding(model, img_path):
     img_tensor = (img_tensor - 127.5) / 128.0
     img_tensor = img_tensor.unsqueeze(0).to(DEVICE)
 
-    # register_hooks(model) # Opcjonalnie
+                                         
 
     with torch.no_grad():
-        # 1. Pobierz cechy przestrzenne
+                                       
         spatial_features = model(img_tensor) 
         
-        # 2. Ręcznie przepuść przez końcowe warstwy backbone'a (tak samo jak w treningu)
-        # Flatten
+                                                                                        
+                 
         features = torch.flatten(spatial_features, 1)
         
-        # FC
+            
         if hasattr(model, 'fc'):
             features = model.fc(features)
             
-        # BN (Final Embedding)
+                              
         if hasattr(model, 'features'):
             features = model.features(features)
         

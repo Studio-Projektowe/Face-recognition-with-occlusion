@@ -22,7 +22,6 @@ from config import (
 )
 
 def initialize_services():
-    """Ładuje model VGGFace i tworzy blokadę GPU."""
     
     gpus = tf.config.experimental.list_physical_devices('GPU')
     if gpus:
@@ -50,10 +49,6 @@ def initialize_services():
     return vgg_model, gpu_lock
 
 def preprocess_face_from_bbox(img, bbox, output_size=224, pad_ratio=0.2):
-    """
-    Wycina twarz na podstawie bbox [x1, y1, x2, y2] z marginesem i skaluje.
-    VGGFace wymaga 224x224.
-    """
     h, w = img.shape[:2]
     x1, y1, x2, y2 = [int(v) for v in bbox]
     
@@ -75,9 +70,6 @@ def preprocess_face_from_bbox(img, bbox, output_size=224, pad_ratio=0.2):
     return cv2.resize(crop, (output_size, output_size), interpolation=cv2.INTER_LINEAR)
 
 def get_embedding(face_bgr, vgg_model, gpu_lock):
-    """
-    Pobiera embedding dla wyciętej twarzy (224x224).
-    """
     try:
         face_rgb = cv2.cvtColor(face_bgr, cv2.COLOR_BGR2RGB)
         
@@ -218,7 +210,6 @@ def build_faiss_gallery(vgg_model, gpu_lock, identity_to_imgfolders, image_pairs
     return True
 
 def apply_occlusion(image, landmarks_dict, bbox):
-    """Nakłada pasek okluzji na pełne zdjęcie."""
     occluded_image = image.copy()
     try:
         left_eye_y = landmarks_dict["left_eye"][1]

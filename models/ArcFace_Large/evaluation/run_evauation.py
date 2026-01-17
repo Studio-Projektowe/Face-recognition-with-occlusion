@@ -15,7 +15,6 @@ from config import (
 )
 
 def initialize_services():
-    """Ładuje model InsightFace."""
     print("Ładowanie modelu InsightFace (ArcFace)... (to może potrwać chwilę)")
     try:
         providers = ['CUDAExecutionProvider', 'CPUExecutionProvider']
@@ -34,7 +33,6 @@ def initialize_services():
     return model
 
 def get_embedding(model, image_bgr):
-    """Pobiera embedding dla pojedynczego obrazu."""
     try:
         faces = model.get(image_bgr)
         if faces and len(faces) > 0:
@@ -45,10 +43,6 @@ def get_embedding(model, image_bgr):
 
 
 def discover_file_structure(local_test_path):
-    """
-    Mapuje lokalną strukturę plików na logiczne foldery.
-    Zwraca te same słowniki co wersja GCS, ale z lokalnymi ścieżkami.
-    """
     print(f"Wykrywanie struktury plików w {local_test_path}...")
     
     search_pattern = os.path.join(local_test_path, "*", "*", "*.jpg")
@@ -91,9 +85,6 @@ def discover_file_structure(local_test_path):
 
 
 def build_faiss_gallery(model, identity_to_imgfolders, image_pairs):
-    """
-    Tworzy galerię FAISS z pierwszej połowy zdjęć dla każdego ID.
-    """
     print(f"--- ROZPOCZYNAM Budowanie Galerii FAISS ---")
     
     identity_paths = list(identity_to_imgfolders.keys())
@@ -166,7 +157,6 @@ def build_faiss_gallery(model, identity_to_imgfolders, image_pairs):
 
 
 def apply_occlusion(image, landmarks_dict, bbox):
-    """Nakłada pasek okluzji na wysokości oczu o szerokości twarzy."""
     occluded_image = image.copy()
     try:
         left_eye_y = landmarks_dict["left_eye"][1]
@@ -186,9 +176,6 @@ def apply_occlusion(image, landmarks_dict, bbox):
     return occluded_image
 
 def run_occlusion_evaluation(model, identity_to_imgfolders, image_pairs):
-    """
-    Testuje drugą połowę zdjęć z okluzją i zapisuje wyniki do CSV.
-    """
     print("Wczytywanie galerii FAISS i mapowania ID...")
     try:
         index = faiss.read_index(FAISS_INDEX_FILE)

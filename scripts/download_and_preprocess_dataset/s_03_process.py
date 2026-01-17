@@ -4,7 +4,7 @@ import glob
 import json
 import cv2
 import logging
-import numpy as np  # Musimy to zaimportować
+import numpy as np                          
 from retinaface import RetinaFace
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed 
@@ -15,10 +15,6 @@ logging.getLogger('RetinaFace').setLevel(logging.WARNING)
 
 
 def process_image(image_path, model):
-    """
-    Przetwarza pojedynczy obraz: wykrywa twarz i zapisuje plik JSON.
-    Model (funkcja) jest przekazywany jako argument.
-    """
     try:
         base_name = os.path.splitext(image_path)[0]
         json_path = base_name + ".json"

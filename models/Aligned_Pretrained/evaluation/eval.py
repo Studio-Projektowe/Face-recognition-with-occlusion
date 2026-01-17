@@ -35,7 +35,6 @@ transform = transforms.Compose([
 ])
 
 def initialize_custom_model():
-    """Ładuje Twój wytrenowany backbone."""
     print(f"Budowanie architektury iResNet...")
     model = load_clean_model()
     
@@ -62,11 +61,6 @@ def initialize_custom_model():
     return model
 
 def get_embedding(model, image_bgr):
-    """
-    Pobiera embedding używając Twojego modelu.
-    Wejście: Obraz BGR (cv2)
-    Wyjście: Znormalizowany wektor numpy (512,)
-    """
     try:
         if image_bgr.shape[0] != 112 or image_bgr.shape[1] != 112:
             image_bgr = cv2.resize(image_bgr, (112, 112))
@@ -93,7 +87,7 @@ def get_embedding(model, image_bgr):
 def discover_file_structure(local_test_path):
     print(f"Skanowanie plików w {local_test_path}...")
     
-    # Wzór: [dataset]/[id]/[session]/[img.jpg]
+                                              
     search_pattern = os.path.join(local_test_path, "*", "*", "*.jpg")
     all_jpg_files = list(glob.glob(search_pattern))
     
@@ -170,7 +164,7 @@ def build_faiss_gallery(model, identity_to_imgfolders, image_pairs):
     dimension = gallery_embeddings[0].shape[0] 
     gallery_matrix = np.array(gallery_embeddings).astype('float32')
     
-    # Indeks FlatIP (Inner Product) = Cosine Similarity dla znormalizowanych wektorów
+                                                                                     
     index = faiss.IndexFlatIP(dimension)
     index.add(gallery_matrix)
     
@@ -183,7 +177,6 @@ def build_faiss_gallery(model, identity_to_imgfolders, image_pairs):
 
 
 def apply_occlusion(image, landmarks_dict, bbox):
-    """Nakłada pasek okluzji na oczy."""
     occluded_image = image.copy()
     try:
         if landmarks_dict:

@@ -15,10 +15,6 @@ logging.basicConfig(level=logging.INFO)
 logging.getLogger('RetinaFace').setLevel(logging.WARNING)
 
 def process_missing_json(image_path, model):
-    """
-    Przetwarza obraz: wykrywa twarz i zapisuje plik JSON, ale tylko jeśli JSON nie istnieje.
-    Zastosowano obniżony próg ufności.
-    """
     try:
         base_name = os.path.splitext(image_path)[0]
         json_path = base_name + ".json"

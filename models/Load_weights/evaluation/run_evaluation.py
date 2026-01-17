@@ -32,15 +32,13 @@ OUTPUT_OCCLUSION_DIR = "evaluation_photos_custom"
 OCCLUSION_SIZE = 20
 
 def normalize_name(name):
-    """Normalizacja nazw do porównywania."""
     name = name.replace('_initializer_', '')
     name = name.replace('module.', '')
     name = name.replace('.', '').replace('_', '').lower()
     return name
 
 def reset_layer_params(layer, name):
-    """Resetuje parametry warstwy do bezpiecznych wartości startowych."""
-    # print(f"Resetowanie warstwy: {name}")
+                                           
     if isinstance(layer, nn.Conv2d):
         nn.init.kaiming_normal_(layer.weight, mode='fan_out', nonlinearity='relu')
         if layer.bias is not None:
@@ -57,7 +55,6 @@ def reset_layer_params(layer, name):
         nn.init.constant_(layer.weight, 0.25)
 
 def sanitize_model(model):
-    """Naprawia potencjalne NaN w modelu."""
     print("\nUruchamiam SZPITAL (Sanitize Model)...")
     fixes = 0
     for name, m in model.named_modules():
@@ -165,10 +162,6 @@ def load_clean_model():
 
 
 def get_embedding_raw(model, img_bgr):
-    """
-    Zamiennik model.get() z insightface.
-    Wykonuje ręczny preprocessing i inferencję na czystym modelu PyTorch.
-    """
     if img_bgr is None: return None
 
     try:
@@ -177,7 +170,7 @@ def get_embedding_raw(model, img_bgr):
         
         img_tensor = torch.from_numpy(img_resized).permute(2, 0, 1).float()
         
-        # Normalizacja: (x - 127.5) / 128.0 (Standard dla modeli InsightFace/ArcFace)
+                                                                                     
         img_tensor = (img_tensor - 127.5) / 128.0
         
         img_tensor = img_tensor.unsqueeze(0).to(DEVICE)
@@ -291,7 +284,6 @@ def build_faiss_gallery(model, identity_to_imgfolders, image_pairs):
     return True
 
 def apply_occlusion(image, landmarks_dict, bbox):
-    """Nakłada czarny pasek na oczy."""
     occluded_image = image.copy()
     try:
         left_eye_y = landmarks_dict["left_eye"][1]

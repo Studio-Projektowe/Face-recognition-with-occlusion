@@ -21,9 +21,9 @@ HARD_IDS_CSV = os.path.join(CURRENT_DIR, "hardest_ids_summary.csv")
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-# -------------------------
-# Model loading
-# -------------------------
+                           
+               
+                           
 
 def _filter_and_load(model, state_dict, min_match_ratio=0.2, weights_path=""):
     new_state = {k.replace("module.", "").replace("backbone.", ""): v for k, v in state_dict.items()}
@@ -76,9 +76,9 @@ def load_model(weights_path: str, model_type: str):
     return model
 
 
-# -------------------------
-# Data utils
-# -------------------------
+                           
+            
+                           
 
 def load_hardest_ids(csv_path: str, model_name: str, top_n: int) -> List[str]:
     if not os.path.exists(csv_path):

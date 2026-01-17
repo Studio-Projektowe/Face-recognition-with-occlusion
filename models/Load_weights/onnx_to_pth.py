@@ -34,7 +34,7 @@ if not os.path.exists(EXAMPLE_IMG_PATH):
     print(f"BŁĄD: Nie znaleziono pliku {EXAMPLE_IMG_PATH} dla testu.")
     img = np.random.randint(0, 256, (112, 112, 3), dtype=np.uint8)
 else:
-    img = cv2.imread(EXAMPLE_IMG_PATH)[:,:,::-1] # BGR->RGB
+    img = cv2.imread(EXAMPLE_IMG_PATH)[:,:,::-1]           
     if img.shape[0] != 112 or img.shape[1] != 112:
         img = cv2.resize(img, (112, 112))
 

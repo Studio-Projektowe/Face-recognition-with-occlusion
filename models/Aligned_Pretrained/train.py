@@ -11,10 +11,10 @@ import random
 from tqdm import tqdm
 from skimage import transform as trans
 
-# Import modelu
+               
 from load import load_clean_model, DEVICE
 
-# ================= CONFIG =================
+                                            
 BASE_DIR = '../webface_112x112'
 TRAIN_DIR = os.path.join(BASE_DIR, 'train')
 VAL_DIR = os.path.join(BASE_DIR, 'test')
@@ -29,9 +29,9 @@ PATIENCE = 5
 NUM_VERIFY_PAIRS = 500
 
 LR_HEAD = 0.01
-# ==========================================
+                                            
 
-# ---------- ALIGNMENT ----------
+                                 
 arcface_dst = np.array([
     [38.2946, 51.6963],
     [73.5318, 51.5014],
@@ -68,7 +68,7 @@ def get_landmarks_from_json(json_path):
     except:
         return None
 
-# ---------- VERIFICATION DATASET ----------
+                                            
 class VerificationDataset(Dataset):
     def __init__(self, root_dir, transform=None, num_pairs=500):
         self.transform = transform
@@ -123,7 +123,7 @@ class VerificationDataset(Dataset):
 
         return self.transform(img_c), self.transform(img_o)
 
-# ---------- TRAIN DATASET ----------
+                                     
 class OcclusionFaceDataset(Dataset):
     def __init__(self, root_dir, transform=None):
         self.transform = transform
@@ -168,7 +168,7 @@ class OcclusionFaceDataset(Dataset):
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         return self.transform(img), label
 
-# ---------- MODEL ----------
+                             
 class ArcMarginProduct(nn.Module):
     def __init__(self, in_f, out_f, s=30.0, m=0.5):
         super().__init__()
@@ -199,7 +199,7 @@ class FaceModel(nn.Module):
         f = self.backbone(x).view(x.size(0), -1)
         return self.arc(f,y) if y is not None else f
 
-# ---------- MAIN ----------
+                            
 def main():
     backbone = load_clean_model()
     model = FaceModel(backbone, len(os.listdir(TRAIN_DIR))).to(DEVICE)
@@ -218,12 +218,12 @@ def main():
     optimizer = optim.SGD(model.parameters(), lr=LR_HEAD, momentum=0.9)
     criterion = nn.CrossEntropyLoss()
 
-    # Zmienne do śledzenia najlepszego modelu
+                                             
     best_sim = -1.0
     patience_counter = 0
 
     for epoch in range(EPOCHS):
-        # --- TRENING ---
+                         
         model.train()
         train_loss = 0.0
         for img, lbl in tqdm(train_loader, desc=f"Epoch {epoch+1} Train"):
@@ -238,7 +238,7 @@ def main():
         
         avg_train_loss = train_loss / len(train_loader)
 
-        # --- WALIDACJA ---
+                           
         model.eval()
         sims = []
         with torch.no_grad():
@@ -252,14 +252,14 @@ def main():
         val_sim = np.mean(sims)
         print(f"Epoch {epoch+1} | Loss: {avg_train_loss:.4f} | Ver Sim: {val_sim:.4f}")
 
-        # --- ZAPISYWANIE NAJLEPSZEGO MODELU I EARLY STOPPING ---
+                                                                 
         if val_sim > best_sim:
             best_sim = val_sim
             patience_counter = 0
-            # Zapisujemy cały state_dict (backbone + head)
+                                                          
             torch.save(model.state_dict(), SAVE_PATH)
-            # Opcjonalnie: zapisz sam backbone, jeśli tylko jego użyjesz na produkcji:
-            # torch.save(model.backbone.state_dict(), 'backbone_only.pth')
+                                                                                      
+                                                                          
             print(f"--> Saved best model with sim: {best_sim:.4f}")
         else:
             patience_counter += 1

@@ -54,12 +54,6 @@ def norm_crop(img, landmark):
     return cv2.warpAffine(img, M, (112, 112), borderValue=0.0)
 
 def process_image(img_path):
-    """
-    1. Load image.
-    2. Detect face (RetinaFace).
-    3. Perform Alignment.
-    4. Normalize to Tensor.
-    """
     if not os.path.exists(img_path):
         print(f" [ERROR] File does not exist: {img_path}")
         return None

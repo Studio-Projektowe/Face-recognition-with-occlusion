@@ -10,13 +10,10 @@ from config import BASE_DATA_DIR, PROCESSING_ORDER, NUM_WORKERS, IMAGE_EXTENSION
 logging.basicConfig(level=logging.INFO)
 
 def move_image(image_path):
-    """
-    Przenosi obraz ze struktury .../id/img.jpg do .../id/img/img.jpg
-    """
     try:
-        file_dir = os.path.dirname(image_path)    # .../train/id_0001
-        file_name = os.path.basename(image_path) # 0.jpg
-        base_name = os.path.splitext(file_name)[0] # 0
+        file_dir = os.path.dirname(image_path)                       
+        file_name = os.path.basename(image_path)        
+        base_name = os.path.splitext(file_name)[0]    
 
         new_dir = os.path.join(file_dir, base_name)
         
@@ -46,11 +43,11 @@ def run():
         
         print(f"\nRozpoczynanie restrukturyzacji podziału: '{split}'...")
         
-        # WAŻNE: Szukamy tylko na pierwszym poziomie podfolderów (id_xxx),
-        # a nie rekursywnie, aby nie przetwarzać plików, które już przenieśliśmy.
+                                                                          
+                                                                                 
         image_files = []
         for ext in IMAGE_EXTENSIONS:
-            # Wzór: .../split_dir/id_folder/*.jpg
+                                                 
             pattern = os.path.join(split_dir, "*", f"*{ext}")
             image_files.extend(glob.glob(pattern, recursive=False))
         

@@ -117,10 +117,6 @@ class IResNetCBAM(nn.Module):
         return x
 
 def load_cbam_model(weights_path=None, device='cpu'):
-    """
-    Tworzy model IResNetCBAM (architektura r50: [3, 4, 14, 3]) 
-    i opcjonalnie ładuje wagi.
-    """
     model = IResNetCBAM(CBAMBasicBlock, [3, 4, 14, 3])
     
     if weights_path:

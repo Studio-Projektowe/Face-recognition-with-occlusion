@@ -28,7 +28,7 @@ def find_eval_csvs(base_dir: str):
 
 def get_model_name(csv_path: str) -> str:
     parts = csv_path.split(os.sep)
-    # models/<ModelName>/score/evaluation_results.csv
+                                                     
     try:
         idx = parts.index("models")
         return parts[idx + 1]

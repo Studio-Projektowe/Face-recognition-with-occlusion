@@ -6,7 +6,7 @@ import torch
 from pytorch_grad_cam import GradCAM
 from pytorch_grad_cam.utils.image import show_cam_on_image, preprocess_image
 
-# Dodaj katalog nadrzędny do importów
+                                     
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 MODELS_DIR = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
 REPO_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, "..", ".."))
@@ -19,7 +19,7 @@ try:
     from Aligned_Pretrained.load import load_clean_model
 except ImportError:
     load_clean_model = None
-    # Fallback: bezpośredni import z pliku
+                                          
     try:
         import importlib.util
 
@@ -33,17 +33,17 @@ except ImportError:
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# --- CONFIG ---
-# MODEL_TYPE = "baseline"  # baseline | cbam | transformer
-# WEIGHTS_PATH = "../Aligned_Pretrained/pytorch_model/baseline.pth"
-# MODEL_TYPE = "transformer"  # baseline | cbam | transformer
-# WEIGHTS_PATH = "../Aligned_Pretrained_Transformers/pytorch_model/Aligned_Pretrained_Transformers.pth"
-MODEL_TYPE = "cbam"  # baseline | cbam | transformer
+                
+                                                          
+                                                                   
+                                                             
+                                                                                                       
+MODEL_TYPE = "cbam"                                 
 WEIGHTS_PATH = "../Aligned_Pretrained_CBAM_Block/pytorch_model/Aligned_Pretrained_CBAM_Block_v2.pth"
 IMAGE_PATH = "./grad_cam/image5.jpg"
 OUTPUT_PATH = "./grad_cam/cbam5.jpg"
-REF_IMAGE_PATH = "ref_image4.jpg"  # obraz referencyjny do wektora podobieństwa (opcjonalny)
-USE_SIM_TARGET = False  # jeśli True, Grad-CAM maksymalizuje podobieństwo do REF_IMAGE_PATH
+REF_IMAGE_PATH = "ref_image4.jpg"                                                           
+USE_SIM_TARGET = False                                                                     
 
 
 def get_target_layer(model):
@@ -83,7 +83,7 @@ def load_model(weights_path=None, min_match_ratio=0.2, model_type="baseline"):
         if load_clean_model is not None:
             model = load_clean_model()
         else:
-            # Fallback: zbuduj backbone bezpośrednio
+                                                    
             from Aligned_Pretrained.backbone_iresnet import iresnet50
             model = iresnet50(weights_path=None)
     elif model_type == "transformer":
@@ -129,7 +129,7 @@ def generate_gradcam(model, img_path, output_path, target_layer=None):
             self.ref_emb = ref_emb
 
         def __call__(self, model_output):
-            # model_output: (B, D) embedding
+                                            
             if model_output.dim() > 2:
                 model_output = torch.flatten(model_output, 1)
             return torch.nn.functional.cosine_similarity(model_output, self.ref_emb, dim=1).mean()

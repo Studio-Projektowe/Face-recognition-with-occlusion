@@ -67,14 +67,14 @@ def visualize_faiss_index(index_file, map_file, output_image):
     print(f"Tworzenie wykresu i zapisywanie do {output_image}...")
     plt.figure(figsize=(16, 12))
     
-    # Przypisujemy każdemu unikalny kolor
+                                         
     scatter = plt.scatter(vectors_2d[:, 0], vectors_2d[:, 1], c=point_colors, alpha=0.7)
     
-    # legend_elements = [plt.Line2D([0], [0], marker='o', color='w', label=label,
-    #                               markerfacecolor=color, markersize=10)
-    #                    for label, color in zip(labels, point_colors)]
+                                                                                 
+                                                                         
+                                                                       
     
-    # plt.legend(handles=legend_elements, bbox_to_anchor=(1.05, 1), loc='upper left', title="ID Wektorów")
+                                                                                                          
 
 
     plt.title("Wizualizacja t-SNE 'średnich' wektorów tożsamości z galerii FAISS (kolorowane ID)")
