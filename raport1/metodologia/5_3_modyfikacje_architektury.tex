@@ -1,0 +1,13 @@
+Zaproponowane modyfikacje architektury ograniczono do wariantów faktycznie obecnych w implementacji. Wszystkie modele bazują na IResNet50 i różnią się wyłącznie dodatkowymi mechanizmami odporności na okluzję.
+
+\paragraph{Wariant A: Model bazowy}
+Wariant odniesienia wykorzystuje standardowy backbone IResNet50 oraz głowicę ArcMargin do klasyfikacji tożsamości. Nie stosuje mechanizmów uwagi ani dodatkowych głowic pomocniczych. Jego rolą jest stanowić stabilny punkt odniesienia do oceny wpływu modyfikacji architektury.
+
+\paragraph{Wariant B: CBAM zintegrowany w blokach rezydualnych}
+W tym wariancie moduły CBAM umieszczono wewnątrz każdego bloku rezydualnego (CBAMBasicBlock), bezpośrednio przed połączeniem rezydualnym. Zastosowano uwagę kanałową i przestrzenną, co pozwala na selektywne wzmacnianie istotnych map cech na wielu poziomach abstrakcji. Celem wariantu jest uzyskanie odporności na okluzję poprzez rozproszoną filtrację zakłóceń.
+
+\paragraph{Wariant C: Gałąź pomocnicza Transformer}
+Wariant ten modyfikuje backbone tak, aby zwracał mapę cech o rozmiarze $7\times7$, a następnie dodaje pomocniczą gałąź Transformer (Branch-2) uczoną równolegle z głowicą ArcMargin (Branch-1). W trakcie treningu wykorzystywana jest strata łączona (ArcMargin + CrossEntropy z gałęzi Transformer), natomiast podczas ewaluacji wykorzystywana jest wyłącznie gałąź standardowa.
+
+\subsubsection{Strategia uczenia i stabilizacji}
+We wszystkich wariantach zastosowano transfer learning z wagami wstępnie wytrenowanymi, a w wariancie CBAM\_Block dodatkowo etapowe zamrażanie/odmrażanie wag w celu stabilizacji uczenia. Augmentacja danych obejmowała syntetyczną okluzję regionu oczu, spójną z protokołem ewaluacyjnym.

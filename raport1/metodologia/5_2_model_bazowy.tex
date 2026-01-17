@@ -1,0 +1,50 @@
+\subsubsection{Wybór IResNet50}
+Wybraliśmy IResNet50 (Ulepszona sieć ResNet50) jako architekturę sieci głównej ze względu na jej sprawdzoną wydajność w modelu ArcFace-Large (buffalo\_l) z projektu InsightFace. Implementacja w repozytorium zawiera warstwy BN i PReLU, a warstwa \texttt{features} (BN1d) ma zamrożone wagi (\texttt{requires\_grad=False}), co ogranicza adaptację końcowego wektora cech w trakcie fine-tuningu. IResNet50 składa się z:
+\begin{itemize}
+    \item Wstępna konwolucja: $3 \times 3$ conv, 64 kanały, stride 1
+    \item Warstwy 1-4: Bloki resztkowe o różnych głębokościach
+    \item Normalizacja wsadowa i aktywacje PReLU na całej sieci
+    \item Wymiar cechy: osadzania 512-wymiarowe
+\end{itemize}
+
+\subsubsection{Hybrydowa strategia transferu wag}
+Bezpośredni transfer z modelu buffalo\_l opartego na ONNX do PyTorch okazał się trudny ze względu na niezgodności architektoniczne. Zastosowano hybrydowe dopasowanie wag (dopasowanie nazw + dopasowanie kształtu), z reinicjalizacją warstw bez dopasowania. Proces ten jest realizowany przez \texttt{load.py} i zapewnia stabilny punkt startowy dla fine-tuningu.
+
+\paragraph{Pomyślne transfery:} $\approx 90\%$ wag bloków ResNet zostało pomyślnie zmapowanych, w tym:
+\begin{itemize}
+    \item Warstwy Conv2d w ścieżkach resztkowych
+    \item Większość parametrów BatchNorm (wagi, obciążenia, statystyki uruchamiające)
+    \item Wagi PReLU (gdzie konwencje nazewnictwa się zgadzały)
+\end{itemize}
+
+\paragraph{Warstwy reinicjalizowane:} 26 warstw wymagało inicjalizacji Kaiming Normal (He) ze względu na niezgodność architektoniczną:
+\begin{itemize}
+    \item layer1.2.bn3: statystyki BatchNorm3D (running\_mean, running\_var)
+    \item layer2.3.bn2, layer2.3.bn3: parametry BatchNorm
+    \item layer2.3.prelu: waga PReLU (parametr $\alpha$)
+    \item layer3.12-13.bn2-3: podobne instancje BatchNorm i PReLU
+\end{itemize}
+
+Formuła inicjalizacji:
+\begin{equation}
+w \sim \mathcal{N}(0, \sqrt{\frac{2}{n_{in}(1 + a^2)}})
+\end{equation}
+gdzie $a$ jest ujemnym nachyleniem (0 dla ReLU, 0.25 dla PReLU w naszym przypadku - później trenowane).
+
+\subsection{Funkcje straty}
+\label{subsec:loss}
+
+\subsubsection{Strata ArcMargin}
+Podstawową funkcją straty w modelu bazowym oraz w wariancie CBAM\_Block jest strata ArcMargin, marginalna strata softmax, która wymusza separowalność kątową w przestrzeni osadzania. W implementacji przyjęto parametry $m=0.5$ i $s=30.0$ (zbieżne z ArcFace).
+
+W treningu optymalizowana jest standardowa \textit{CrossEntropy} na wyjściu ArcMargin:
+\begin{equation}
+\mathcal{L}_{\text{ArcFace}} = \text{CE}(\text{ArcMargin}(\mathbf{e}), y)
+\end{equation}
+
+\subsubsection{Strata złożona dla wariantu Transformer}
+W wariancie Transformer zastosowano funkcję straty łączoną, gdzie gałąź podstawowa (ArcMargin) jest wzbogacana o pomocniczą stratę klasyfikacji z transformera (CrossEntropy):
+\begin{equation}
+\mathcal{L}_{\text{total}} = (1-\alpha)\,\mathcal{L}_{\text{ArcFace}} + \alpha\,\mathcal{L}_{\text{Trans}}
+\end{equation}
+gdzie $\alpha = 0.4$ zgodnie z parametrami w kodzie treningu.

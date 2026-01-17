@@ -61,6 +61,19 @@ def initialize_custom_model():
     model.eval()
     return model
 
+def _extract_embedding(model, img_tensor):
+    """Ujednolicona ekstrakcja 512D embeddingu (jak w treningu)."""
+    # Backbone zwraca mapę cech (B, 512, 7, 7)
+    features_spatial = model(img_tensor)
+    features_flat = torch.flatten(features_spatial, 1)
+    if hasattr(model, 'dropout'):
+        features_flat = model.dropout(features_flat)
+    if hasattr(model, 'fc'):
+        features_flat = model.fc(features_flat)
+    if hasattr(model, 'features'):
+        features_flat = model.features(features_flat)
+    return features_flat
+
 def get_embedding(model, image_bgr):
     """
     Pobiera embedding używając Twojego modelu.
@@ -70,21 +83,20 @@ def get_embedding(model, image_bgr):
     try:
         if image_bgr.shape[0] != 112 or image_bgr.shape[1] != 112:
             image_bgr = cv2.resize(image_bgr, (112, 112))
-            
+
         img_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
-        
         img_tensor = transform(img_rgb).unsqueeze(0).to(DEVICE)
-        
+
         with torch.no_grad():
-            embedding = model(img_tensor)
+            embedding = _extract_embedding(model, img_tensor)
             embedding = embedding.cpu().numpy().flatten()
-            
+
         norm = np.linalg.norm(embedding)
         if norm > 0:
             embedding /= norm
-            
+
         return embedding
-        
+
     except Exception as e:
         print(f"Warning: Błąd podczas pobierania embeddingu: {e}")
         return None

@@ -1,0 +1,13 @@
+\subsection{Redukcja zakłóceń i adaptacyjna selekcja cech za pomocą modułów atencji (CBAM)}
+
+\paragraph{}W kontekście rozpoznawania twarzy z okluzją kluczowym problemem jest nie tylko ekstrakcja cech, ale także umiejętność odróżnienia cech użytecznych (np. oczy, nos) od zakłóceń (np. szalik, okulary, dłoń zasłaniająca twarz). Rozwiązaniem tego problemu jest zastosowanie mechanizmów atencji, które pozwalają sieci neuronowej dynamicznie ważyć ważność poszczególnych fragmentów obrazu.
+
+Woo i in. [4] zaproponowali moduł CBAM (Convolutional Block Attention Module), który jest lekkim i uniwersalnym rozszerzeniem dla sieci splotowych. Istotą tego rozwiązania jest sekwencyjne wnioskowanie map atencji w dwóch wymiarach:
+
+1. Uwaga kanałowa (Channel Attention): Określa "co" jest ważne na obrazie. Wykorzystuje ona zarówno average-pooling (dla ogólnych statystyk), jak i max-pooling (dla cech wyróżniających), aby zdecydować, które kanały mapy cech zawierają istotne informacje o obiekcie, a które niosą szum.
+
+2. Uwaga przestrzenna (Spatial Attention): Określa "gdzie" znajdują się istotne informacje. Jest ona komplementarna do atencji kanałowej i pozwala sieci skupić się na lokalizacji kluczowych elementów twarzy, ignorując tło i elementy przysłaniające.
+
+\paragraph{}Badania przeprowadzone przez autorów, m.in. z wykorzystaniem techniki wizualizacji Grad-CAM, wykazały, że sieci wzbogacone o moduł CBAM znacznie precyzyjniej obejmują obszar docelowego obiektu. Woo i in. zauważają, że moduł ten prowadzi do redukcji szumu pochodzącego z nieistotnych elementów otoczenia (ang. clutters) [4]. W przypadku okluzji jest to właściwość fundamentalna – element przysłaniający twarz może zostać potraktowany przez sieć jako "nieistotny szum" (clutter) i zostać wytłumiony na etapie atencji przestrzennej, podczas gdy widoczne fragmenty twarzy zostaną wzmocnione.
+
+Zastosowanie CBAM jest szczególnie obiecujące w implementacji modeli odpornych na okluzję ze względu na jego modułowość. Może on być zintegrowany z dowolną architekturą CNN (np. ResNet) przy znikomym narzucie obliczeniowym, co czyni go dogodnym narzędziem do analizy wpływu selekcji cech na różnych poziomach reprezentacji.

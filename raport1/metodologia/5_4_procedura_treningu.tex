@@ -1,0 +1,72 @@
+\subsubsection{Model bazowy (Aligned\_Pretrained)}
+Model bazowy trenowany jest jako klasyfikator z głowicą ArcMargin.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{ll}
+\toprule
+\textbf{Hiperparametr} & \textbf{Wartość} \\
+\midrule
+Rozmiar partii & 32 \\
+Epoki & 25 \\
+Optymalizator & SGD (momentum=0.9) \\
+LR & $1 \times 10^{-2}$ \\
+Zanik wag & brak (nie ustawiono) \\
+Wczesne zatrzymanie & Tak (cierpliwość=5) \\
+Walidacja & 500 par z testu (średnia cos) \\
+Augmentacja okluzji & $p=0.7$, wysokość 20 px \\
+\bottomrule
+\end{tabular}
+\caption{Hiperparametry modelu bazowego (Aligned\_Pretrained).}
+\label{tab:baseline_config}
+\end{table}
+
+\subsubsection{Gałąź pomocnicza Transformer}
+Model z transformatorem wykorzystuje złożoną funkcję straty, łącząc ArcMargin i klasyfikację gałęzi pomocniczej.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{ll}
+\toprule
+\textbf{Hiperparametr} & \textbf{Wartość} \\
+\midrule
+Rozmiar partii & 32 \\
+Epoki & 25 \\
+Optymalizator & SGD (momentum=0.9, weight\_decay=$5\times 10^{-4}$) \\
+LR & $1 \times 10^{-2}$ \\
+ALPHA (balans strat) & 0.4 \\
+Transformer layers/heads & 6 / 8 \\
+Wczesne zatrzymanie & Tak (cierpliwość=5) \\
+Walidacja & 500 par z testu (średnia cos) \\
+Augmentacja okluzji & $p=0.7$, wysokość 20 px \\
+\bottomrule
+\end{tabular}
+\caption{Hiperparametry modelu z gałęzią Transformer.}
+\label{tab:transformer_config}
+\end{table}
+
+\subsubsection{CBAM\_Block (uwaga w każdym bloku)}
+Trening realizowany jest dwuetapowo z zamrożeniem backbone'u w pierwszej epoce.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{ll}
+\toprule
+\textbf{Hiperparametr} & \textbf{Wartość} \\
+\midrule
+Rozmiar partii & 64 \\
+Epoki & 30 \\
+Optymalizator & SGD (momentum=0.9, weight\_decay=$5\times 10^{-4}$) \\
+LR start & 0.1 \\
+Harmonogram LR & StepLR (step\_size=10, gamma=0.1) \\
+Zamrażanie & Epoka 1: tylko CBAM + head \\
+Walidacja & 500 par z testu (średnia cos) \\
+Augmentacja okluzji & $p=0.5$, wysokość 20 px \\
+\bottomrule
+\end{tabular}
+\caption{Hiperparametry modelu CBAM\_Block.}
+\label{tab:cbam_block_config}
+\end{table}

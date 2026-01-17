@@ -1,0 +1,48 @@
+\subsubsection{Przegląd datasetu}
+
+\paragraph{}Badania przeprowadzono na zbiorze danych CASIA-WebFace, zawierającym ponad 494 tys. kolorowych fotografii twarzy, należących do 10,575 unikatowych tożsamości. Dane podzielono na dwa rozłączne podzbiory: treningowy (90\%) i testowy (10\%). Dla monitorowania zbieżności modelu wykorzystywano stały zestaw 500 par (walidacja) z części testowej, zgodnie z pipeline’em treningowym.
+
+\subsubsection{Wyrównanie na podstawie punktów orientacyjnych}
+
+\paragraph{}Wszystkie obrazy są wstępnie przetwarzane za pomocą modelu RetinaFace od InsightFace w celu wykrycia 5 punktów orientacyjnych twarzy: lewe oko, prawe oko, czubek nosa i kąciki ust. Te punkty orientacyjne umożliwiają konsystentną normalizację twarzy przy użyciu transformacji podobieństwa do standardowej rozdzielczości 112×112. Większość obrazów ma towarzyszący plik JSON zawierający:
+\begin{itemize}
+    \item Współrzędne ramki ograniczającej: \texttt{bbox} = $[x_1, y_1, x_2, y_2]$
+    \item 5 punktów orientacyjnych: \texttt{landmarks} = $\{$lewe\_oko, prawe\_oko, nos, lewy\_ust, prawy\_ust$\}$
+\end{itemize}
+
+W przypadku braku JSON, zastosowano rezerwowe skalowanie obrazu do 112×112. Brak pliku JSON wynikał z niepowodzenia detekcji punktów orientacyjnych dla niskiej jakości lub nietypowych obrazów (ok. 2,5\% zdjęć).
+
+Wyrównanie twarzy jest wykonywane przy użyciu referencyjnej konfiguracji punktów orientacyjnych ArcFace:
+\begin{equation}
+M = \text{Similarity Transform}(\text{wykryte\_punkty}, \text{punkty\_referencyjne})
+\end{equation}
+
+gdzie punkty referencyjne dla obrazów 112×112 są ustalone na:
+\begin{equation}
+\text{arcface\_dest} = \begin{bmatrix} 38.29 & 51.70 \\ 73.53 & 51.50 \\ 56.03 & 71.74 \\ 41.55 & 92.37 \\ 70.73 & 92.20 \end{bmatrix}
+\end{equation}
+
+Punkty te stanowią standardową konfigurację stosowaną w ArcFace i zostały zaczerpnięte z dokumentacji kodu oryginalnego modelu, gdzie określono je jako referencyjne pozycje cech twarzy w wyrównanych obrazach.
+
+Ta procedura zapewniła konsystentne wyrównanie zgodne z oryginalnym modelem Buffalo\_L (ArcFace Large), co jest kluczowe dla transferu wag.
+
+\subsubsection{Strategia augmentacji danych}
+\label{subsec:augmentation}
+
+Wszystkie modele są trenowane z syntetyczną okluzją w celu symulacji zasłonięć w regionie oczu. Implementacja stosuje poziomy pasek okluzji o stałej wysokości i losowym kolorze.
+
+\begin{itemize}
+    \item \textbf{Wysokość}: 20 pikseli
+    \item \textbf{Szerokość}: pełna szerokość obrazu (0 do 112)
+    \item \textbf{Pozycja pionowa}: $y = 52 \pm 5$ pikseli (region oczu)
+    \item \textbf{Kolor}: losowe RGB $(r, g, b)$, $r,g,b \in [0, 255]$
+\end{itemize}
+
+Prawdopodobieństwo wystąpienia okluzji różni się między wariantami zgodnie z kodem treningowym:
+\begin{itemize}
+    \item \textbf{Aligned\_Pretrained}: $p=0.7$
+    \item \textbf{Aligned\_Pretrained\_Transformers}: $p=0.7$
+    \item \textbf{CBAM\_Block}: $p=0.5$
+\end{itemize}
+
+W fazie testowej kolor okluzji jest stały (czarny), co zapewnia powtarzalność i porównywalność wyników pomiędzy modelami.

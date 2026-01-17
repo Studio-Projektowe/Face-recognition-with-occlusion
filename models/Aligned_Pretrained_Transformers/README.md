@@ -35,7 +35,7 @@ The base model is `iResNet50` modified to return a spatial feature map `(B, 512,
 > **Actual batch size**: `32`.
 
 ## Results
-- **Evaluation (`score.txt`)**: Rank-1 = `84.32%`, Rank-3 = `88.52%`.
+- **Evaluation (`score.txt`)**: Rank-1 = `85.00%`, Rank-3 = `89.02%`.
 - **Evaluation** in `evaluation/eval.py`: metrics saved to `metrics/evaluation_results.csv`.
 
 ## Training/Evaluation Issues That Could Affect Results

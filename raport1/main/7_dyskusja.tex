@@ -1,0 +1,27 @@
+\paragraph{}W niniejszej sekcji interpretujemy uzyskane rezultaty w kontekście przyjętej metodologii, ze szczególnym uwzględnieniem czynników wpływających na trafność porównań między badanymi wariantami.
+
+\subsection{Interpretacja wyników i analiza czynników konfundujących}
+\paragraph{}W przeprowadzonych eksperymentach wariant CBAM\_Block osiągnął najwyższą dokładność Rank-1 (90.16\%), przewyższając model bazowy (87.11\%) o 3.05 pp. Należy jednak zaznaczyć, że wynik ten nie może być przypisany wyłącznie modyfikacji architektury, ze względu na różnice w procedurze treningowej.
+
+Analiza konfiguracji modeli ujawnia istotne różnice w hiperparametrach, które mogły wpłynąć na wynik końcowy:
+\begin{itemize}
+	\item \textbf{Intensywność augmentacji:} Model bazowy był trenowany z prawdopodobieństwem okluzji $p=0.7$, podczas gdy wariant CBAM trenowano w warunkach łagodniejszych ($p=0.5$). Oznacza to, że model CBAM miał dostęp do większej liczby „czystych” próbek w trakcie uczenia, co naturalnie ułatwia zbieżność i może prowadzić do wyższych wyników na zbiorze testowym.
+	\item \textbf{Dynamika uczenia (Learning Rate):} Wariant CBAM rozpoczął trening z 10-krotnie wyższym współczynnikiem uczenia ($LR=0.1$) w porównaniu do modelu bazowego ($LR=1\times10^{-2}$). Wyższa początkowa wartość LR, w połączeniu z harmonogramem StepLR, mogła pozwolić na lepszą eksplorację przestrzeni wag i ucieczkę z minimów lokalnych, niezależnie od obecności modułów uwagi.
+\end{itemize}
+
+W związku z powyższym, uzyskany wynik należy interpretować jako rezultat połączenia mechanizmu uwagi oraz bardziej agresywnej strategii optymalizacji przy mniejszym poziomie zakłóceń treningowych. Nie można jednoznacznie wyizolować wpływu samego modułu CBAM bez przeprowadzenia ponownych testów w warunkach ceteris paribus.
+
+Wariant Transformer uzyskał wynik niższy od baseline (85.00\%), co przy zastosowaniu tej samej intensywności okluzji ($p=0.7$) sugeruje, że dodanie pomocniczej gałęzi i złożonej funkcji straty mogło utrudnić zbieżność modelu przy ograniczonej liczbie epok (25).
+
+\subsection{Porównanie z modelami SOTA i kwestie wyrównania}
+\paragraph{}Porównanie z modelami referencyjnymi (ArcFace Large: 94.81\%, ArcFace Small: 86.65\%) pełni rolę orientacyjną. Należy podkreślić różnice w potoku przetwarzania wstępnego (pre-processing). Modele autorskie korzystały z wyrównania opartego na detekcji RetinaFace do wymiaru $112\times112$, podczas gdy modele SOTA (szczególnie VGGFace) wykorzystują odmienne procedury kadrowania (crop) i skalowania. W biometrii twarzy sposób wyrównania ma krytyczny wpływ na skuteczność, dlatego bezpośrednie zestawienie wyników obarczone jest błędem systematycznym wynikającym z różnic w danych wejściowych.
+
+Mimo to, fakt że wariant CBAM\_Block (90.16\%) przewyższył wynik ArcFace Small (86.65\%), wskazuje na potencjał zastosowanej konfiguracji (architektura + harmonogram treningu) w zastosowaniach o ograniczonych zasobach, nawet jeśli przewaga ta wynika częściowo z doboru hiperparametrów.
+
+\subsection{Ograniczenia badania (Threats to Validity)}
+\paragraph{}Krytyczna analiza przebiegu projektu wskazuje na następujące ograniczenia, które należy uwzględnić przy replikacji wyników:
+\begin{itemize}
+	\item \textbf{Niejednorodne warunki eksperymentalne:} Zmienność parametrów $p$ (prawdopodobieństwo okluzji) oraz $LR$ pomiędzy wariantami uniemożliwia precyzyjną ocenę przyrostu jakości wynikającego wyłącznie ze zmian w architekturze.
+	\item \textbf{Jakość modelu bazowego (Baseline):} Procedura transferu wag wymagała losowej reinicjalizacji 26 warstw, w tym kluczowych statystyk Batch Normalization. Mogło to sztucznie obniżyć wydajność modelu bazowego, sprawiając, że stał się on zbyt łatwym punktem odniesienia dla modelu CBAM trenowanego od początku z wyższym LR.
+	\item \textbf{Brak analizy statystycznej:} Ze względu na brak ustalonych ziaren losowości (seeds) oraz wykonanie pojedynczych przebiegów treningowych, obserwowane różnice mogą mieścić się w granicach błędu statystycznego.
+\end{itemize}

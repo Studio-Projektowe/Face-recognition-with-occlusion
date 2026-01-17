@@ -1,0 +1,160 @@
+\appendix
+
+\section{Szczegóły architektury CBAM}
+\label{app:cbam}
+
+\subsection{Moduł uwagi kanałów}
+Moduł uwagi kanałów (CAM) oblicza wagi uwagi dla każdego kanału poprzez agregację wymiarów przestrzennych:
+
+\subsubsection{Moduł uwagi kanałów}
+Moduł uwagi kanałów (Channel Attention Module) generuje mapę wag $\mathbf{M}_c \in \mathbb{R}^{C \times 1 \times 1}$ poprzez eksploatację zależności międzykanałowych. Proces ten wykorzystuje współdzielony MLP operujący na zagregowanych przestrzennie cechach:
+
+\begin{equation}
+\mathbf{M}_c(\mathbf{F}) = \sigma\left( W_1(\text{ReLU}(W_0(\mathbf{F}^c_{\text{avg}}))) + W_1(\text{ReLU}(W_0(\mathbf{F}^c_{\text{max}}))) \right)
+\end{equation}
+
+gdzie:
+\begin{itemize}
+    \item $\mathbf{F}^c_{\text{avg}}, \mathbf{F}^c_{\text{max}}$ oznaczają wektory cech uzyskane odpowiednio przez Average Pooling i Max Pooling przestrzenny.
+    \item $W_0 \in \mathbb{R}^{C/r \times C}$ oraz $W_1 \in \mathbb{R}^{C \times C/r}$ to wagi współdzielonej sieci MLP (bottleneck), a $r$ jest współczynnikiem redukcji.
+    \item $\sigma$ oznacza funkcję aktywacji sigmoidalną.
+\end{itemize}
+
+Ostatecznie, mapa cech jest modyfikowana poprzez mnożenie elementarne (z broadcastowaniem wzdłuż wymiarów przestrzennych):
+
+\begin{equation}
+\mathbf{F}' = \mathbf{M}_c(\mathbf{F}) \otimes \mathbf{F}
+\end{equation}
+
+\subsection{Moduł uwagi przestrzennej}
+Moduł uwagi przestrzennej (SAM) generuje mapy uwagi przestrzennej poprzez łączenie uśredniania kanałów i max poolingu:
+
+\begin{equation}
+\text{SAM}(\mathbf{X}) = \sigma(\text{Conv}_{7 \times 7}([\text{AvgPool}(\mathbf{X}); \text{MaxPool}(\mathbf{X})]))
+\end{equation}
+
+gdzie:
+\begin{itemize}
+    \item $[\cdot; \cdot]$ = łączenie kanałów (wejście: $h \times w \times 2$)
+    \item $\text{Conv}_{7 \times 7}$ = pojedyncza konwolucja $7 \times 7$ z 1 kanałem wyjścia
+    \item $\sigma$ = aktywacja sigmoidalna
+\end{itemize}
+
+Uwaga przestrzenna jest zastosowana jako:
+\begin{equation}
+\mathbf{X}'' = \text{SAM}(\mathbf{X}') \otimes \mathbf{X}'
+\end{equation}
+
+\subsection{Kompletny blok CBAM}
+Kompletny blok CBAM łączy oba mechanizmy uwagi w sekwencji:
+
+\begin{equation}
+\begin{split}
+    \mathbf{F}' &= \mathbf{M}_c(\mathbf{F}) \otimes \mathbf{F} \\
+    \mathbf{F}'' &= \mathbf{M}_s(\mathbf{F}') \otimes \mathbf{F}'
+\end{split}
+\end{equation}
+
+\begin{equation}
+\mathbf{Y} = \mathbf{F}'' + \mathbf{X}
+\end{equation}
+
+W architekturach resztkowych CBAM jest stosowany przed operacją dodawania resztkowego:
+
+\begin{equation}
+\mathbf{Y} = \text{CBAM}(\text{Conv}(\mathbf{X})) + \mathbf{X}
+\end{equation}
+
+Dla IResNet50 zastosowano wariant \textbf{Block-wise (CBAM\_Block)}: moduł CBAM jest wstawiony wewnątrz każdego bloku resztkowego, co umożliwia hierarchiczną filtrację zakłóceń na wielu poziomach.
+
+\section{Tabele uzupełniające}
+\label{app:tables}
+
+\subsection{Podsumowanie kompletnych konfiguracji modeli}
+
+\begin{table}[H]
+\centering
+\scriptsize
+\begin{tabular}{l|ccccc}
+\toprule
+\textbf{Model} & \textbf{Partia} & \textbf{Epoki} & \textbf{LR} & \textbf{Optimizer} & \textbf{Harmonogram} \\
+\midrule
+Aligned\_Pretrained & 32 & 25 & $1\times10^{-2}$ & SGD (mom=0.9) & -- \\
+Aligned\_Pretrained\_Transformers & 32 & 25 & $1\times10^{-2}$ & SGD (mom=0.9, wd=$5\times10^{-4}$) & -- \\
+CBAM\_Block & 64 & 30 & $0.1$ & SGD (mom=0.9, wd=$5\times10^{-4}$) & StepLR(10, 0.1) \\
+\bottomrule
+\end{tabular}
+\caption{Podsumowanie konfiguracji treningowych modeli obecnych w repozytorium.}
+\label{tab:all_configs}
+\end{table}
+
+\subsection{Mapowanie wariantów architektury na mechanizmy odporności}
+
+\begin{table}[H]
+\centering
+\scriptsize
+\begin{tabular}{lccc}
+\toprule
+\textbf{Wariant} & \textbf{Mechanizm} & \textbf{Miejsce integracji} & \textbf{Dodatkowa strata} \\
+\midrule
+Aligned\_Pretrained & Brak & -- & Nie \\
+CBAM\_Block & Uwaga kanałowa + przestrzenna & W każdym bloku resztkowym & Nie \\
+Aligned\_Pretrained\_Transformers & Gałąź Transformer & Po mapie cech $7\times7$ & Tak (CE, $\alpha=0.4$) \\
+\bottomrule
+\end{tabular}
+\caption{Zestawienie wariantów architektury i mechanizmów odporności na okluzję.}
+\label{tab:arch_map}
+\end{table}
+
+\subsection{Parametry funkcji straty}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lcc}
+\toprule
+\textbf{Komponenta straty} & \textbf{Model} & \textbf{Konfiguracja} \\
+\midrule
+Strata ArcMargin & Aligned\_Pretrained, CBAM\_Block & $m=0.5$, $s=30.0$ \\
+Strata ArcMargin & Aligned\_Pretrained\_Transformers & $m=0.5$, $s=30.0$ (gałąź główna) \\
+Strata Transformer (CE) & Aligned\_Pretrained\_Transformers & $\alpha=0.4$ w stracie złożonej \\
+\bottomrule
+\end{tabular}
+\caption{Konfiguracja funkcji straty dla modeli obecnych w repozytorium.}
+\label{tab:loss_params}
+\end{table}
+
+
+\section{Definicja metryk ewaluacji}
+\label{app:metrics}
+
+Dla zestawu testowego z $N$ całkowitymi zapytaniami sondy:
+
+\begin{equation}
+\text{Dokładność Rank-1} = \frac{1}{N} \sum_{i=1}^{N} \mathbb{1}[\text{top}\_1[i] = \text{gt}[i]]
+\end{equation}
+
+\begin{equation}
+\text{Dokładność Rank-3} = \frac{1}{N} \sum_{i=1}^{N} \mathbb{1}[\text{gt}[i] \in \{\text{top}\_1, \text{top}\_2, \text{top}\_3\}[i]]
+\end{equation}
+
+gdzie $\mathbb{1}[\cdot]$ jest funkcją wskaźnika, a gt[i] jest rzeczywistą tożsamością dla zapytania $i$.
+
+\section{Statystyki datasetu}
+\label{app:dataset}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lrr}
+\toprule
+\textbf{Podział} & \textbf{Obrazy} & \textbf{Tożsamości} \\
+\midrule
+Trenowanie & 442 710 & 9 514 \\
+Test (Galeria) & 24 227 & 1 057 \\
+Test (Sonda) & 24 227 & 1 057 \\
+\bottomrule
+\end{tabular}
+\caption{Statystyki podziału datasetu CASIA-WebFace.}
+\label{tab:dataset_stats}
+\end{table}
