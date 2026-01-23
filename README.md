@@ -17,18 +17,6 @@ See details in:
 - [models/Aligned_Pretrained_CBAM_Block/README.md](models/Aligned_Pretrained_CBAM_Block/README.md)
 - [models/Aligned_Pretrained_Transformers/README.md](models/Aligned_Pretrained_Transformers/README.md)
 
-## How training data is created
-Data preparation lives in `scripts/`:
-- `scripts/download_and_preprocess_dataset/` — full WebFace download + preprocessing pipeline (RetinaFace + landmarks) per [scripts/download_and_preprocess_dataset/README.md](scripts/download_and_preprocess_dataset/README.md).
-- `scripts/download_dataset_image/` — Kaggle → GCS transfer (Docker) per [scripts/download_dataset_image/README.md](scripts/download_dataset_image/README.md).
-- `scripts/build_image_run_job/` — image build + Cloud Run job execution per [scripts/build_image_run_job/README.md](scripts/build_image_run_job/README.md).
-
-## Why the results may look like this
-- **Different occlusion strategies**: training uses colored bars, evaluation uses black bars (controlled test condition).
-- **Mixed initialization**: some weights are loaded from `w600k_r50_from_onnx.pth`, while some layers are randomly initialized.
-- **No fixed seeds**: lack of fixed random seeds increases result variance.
-- **Architecture changes**: adding attention modules (e.g., `CBAM`) can hurt results if the backbone is frozen.
-
 ## Demo
 
 Want to see how our best model performs in practice? Open the **[demo/](demo/)** folder and check **demo_local.ipynb**.
@@ -48,6 +36,18 @@ Want to try the demo without installing anything? Use our public Google Colab no
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1Zld0rrVekVMX64UikFokj_OhhODpjsdL?usp=sharing)
 
 Simply click the button above, make a copy to your Google Drive, and run the cells. You can instantly see how our best model performs on face verification with and without occlusion.
+
+## How training data is created
+Data preparation lives in `scripts/`:
+- `scripts/download_and_preprocess_dataset/` — full WebFace download + preprocessing pipeline (RetinaFace + landmarks) per [scripts/download_and_preprocess_dataset/README.md](scripts/download_and_preprocess_dataset/README.md).
+- `scripts/download_dataset_image/` — Kaggle → GCS transfer (Docker) per [scripts/download_dataset_image/README.md](scripts/download_dataset_image/README.md).
+- `scripts/build_image_run_job/` — image build + Cloud Run job execution per [scripts/build_image_run_job/README.md](scripts/build_image_run_job/README.md).
+
+## Why the results may look like this
+- **Different occlusion strategies**: training uses colored bars, evaluation uses black bars (controlled test condition).
+- **Mixed initialization**: some weights are loaded from `w600k_r50_from_onnx.pth`, while some layers are randomly initialized.
+- **No fixed seeds**: lack of fixed random seeds increases result variance.
+- **Architecture changes**: adding attention modules (e.g., `CBAM`) can hurt results if the backbone is frozen.
 
 ## Notes
 This repository does not include all experiments — we kept only the ones we considered most useful for comparison and reporting.
